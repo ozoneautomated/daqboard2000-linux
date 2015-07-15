@@ -1,0 +1,75 @@
+Kamal Wickramanayake
+info@deadschool.com
+http://www.deadschool.com/
+Jun 04, 2014
+
+
+This is the driver for IOTECH DaqBoard 1000 and 2000 Series that runs on Linux kernel 3.13.
+
+This driver has been tested on Ubuntu 14.04 with kernel 3.13.0-27. This driver might work with Ubuntu 12.04 as well (or with other version between 12.04 - 14.04).
+
+The original driver for kernel 2.4 is found here: ftp://ftp.mccdaq.com/downloads/iotech_software/DaqBoard_1000_2000_Series/
+
+
+------------------------ Tested Features ------------------
+
+1. Some ADC sample apps are working (Sample apps: bin/DaqAdcEx02, bin/DaqAdcEx07, bin/DaqAdcEx10, bin/DaqAdcEx11).
+2. ADC application bin/DaqAdcEx04 appear to be working (It waits for TTL input which I didn't test with)
+3. Some ADC sample apps are not working (Sample apps: bin/DaqAdcEx03, bin/DaqAdcEx05, bin/DaqAdcEx06, bin/DaqAdcEx08)
+   * There seems to be a memory mapping issue in the driver which I may fix in future if I find a need.
+4. Digital IO appears to be working (Sample apps bin/DaqDigIOEx01 and bin/DaqDigIOEx02 are running well). I didn't test with inputs/outputs.
+5. Digital timer outputs are working (Sample apps: bin/DaqTmrEx01). Waveforms were observed via an oscilloscope.
+6. DAC features of the driver has not been tested since my card DaqBoard 1005 does not have DAC.
+
+
+------------------------ Install --------------------------
+A) To copile, run
+
+  $ make
+
+
+B) To install the driver, library for client programs and headerfiles, run
+
+  $ sudo make install
+
+
+C) To load the driver, either run 'modprobe db2k' or run
+
+  $ sudo make load
+
+
+D) To run sample applications, execute the binaries round inside bin directory. For example,
+
+  $ bin/DaqXXXX
+
+
+The old readme file (old.daqboard2000.readme) packaged with this has some details about the sample applications that you might be interested in reading.
+
+
+------------------------ Loading the driver at boot time --------------------------
+
+If you want the driver to load at boot time, use a udev rule or /etc/rc.local file to execute the following commands:
+
+  mkdir -p /dev/db2k
+  mknod -m 0666 /dev/db2k/DaqBoard2K0 c 61 0
+  mknod -m 0666 /dev/db2k/DaqBoard2K1 c 61 1
+  mknod -m 0666 /dev/db2k/DaqBoard2K2 c 61 2
+  mknod -m 0666 /dev/db2k/DaqBoard2K3 c 61 3 
+  modprobe db2k
+
+The execution of the above modprobe command creates /proc/iotech/.../type files. You can 'cat /proc/iotech/.../type' files. If it prints 35, the driver has detected a DaqBoard 1005 card. 0 indicates no card.
+
+
+------------------------ Testing --------------------------
+
+Press CTRL+ALT+F1 (F2,F2...) and switch to a console. Login as root user. Before modprobe command is run, run the following:
+
+  echo 8 > /proc/sys/kernel/printk
+
+Now load the driver:
+
+  modprobe db2k
+
+This should print some messages to the console as the driver is loaded.
+
+Alternatively, look at the /var/log/syslog file.
