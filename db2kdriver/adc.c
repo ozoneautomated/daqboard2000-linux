@@ -272,13 +272,13 @@ initializeOutputs(PDEVICE_EXTENSION pde)
 	return ;
 }
 
-DWORD
+PDWORD
 adcCheckDescriptorBlocks(PDEVICE_EXTENSION pde)
 {
 	WORD i, lastValidBlock = 0xffff;
 	BYTE *ptrA;
 	BYTE *ptrB;
-	DWORD firstBlockAddr = 0L;
+	PDWORD firstBlockAddr = 0L;
 
 	for (i = 0; i < INPCHAINSIZE; i++) {
 
@@ -288,13 +288,13 @@ adcCheckDescriptorBlocks(PDEVICE_EXTENSION pde)
 
 		if (ptrA == ptrB) {
 			if (firstBlockAddr == 0L) {
-				firstBlockAddr = (DWORD) ptrA - 0x0000000fL;
+				firstBlockAddr = (PDWORD) ptrA - 0x0000000fL;
 			} else {
-				pde->dmaInpChain[lastValidBlock].descriptorPointer = (DWORD) ptrA - 0x0000000fL;
+				pde->dmaInpChain[lastValidBlock].descriptorPointer = (PDWORD) ptrA - 0x0000000fL;
 			}
 			lastValidBlock = i;
 		} else {
-			pde->dmaInpChain[i].descriptorPointer = 0xffffffffL;
+                       pde->dmaInpChain[i].descriptorPointer = (PDWORD) 0xffffffffL;
 		}
 	}
 
@@ -302,38 +302,41 @@ adcCheckDescriptorBlocks(PDEVICE_EXTENSION pde)
 }
 
 
-DWORD
+PDWORD
 adcSetupChainDescriptors(PDEVICE_EXTENSION pde)
 {
 	PWORD bufPhyAddr;
 	PWORD bufSysAddr = (PWORD) pde->dmaInpBuf;
-	DWORD blockSize, firstBlockSize, lastBlockSize;
+	ULONG blockSize, firstBlockSize, lastBlockSize;
 	DWORD bufSize = DMAINPBUFSIZE * 2L;
 	DWORD bufCount = 0;
 	WORD descIndex = 0;
-	DWORD firstBlockAddr;
+	PDWORD firstBlockAddr;
+        ULONG tmp;
 
 	firstBlockAddr = adcCheckDescriptorBlocks(pde);
 	bufPhyAddr = (PWORD) virt_to_phys((PVOID) bufSysAddr);
 
-	firstBlockSize = blockSize = 0x00001000L - ((DWORD) bufPhyAddr & 0x00000fff);
+	firstBlockSize = blockSize = (ULONG) (0x00001000L - ((ULONG) (bufPhyAddr) & 0x00000fff ) );
 	lastBlockSize = 0x00001000L - firstBlockSize;
 
-	while (pde->dmaInpChain[descIndex].descriptorPointer == 0xffffffffL)
+	while (pde->dmaInpChain[descIndex].descriptorPointer ==(PDWORD) 0xffffffffL)
 		descIndex++;
 
 	while (TRUE) {
-		pde->dmaInpChain[descIndex].pciAddr = virt_to_phys(bufSysAddr);
-		pde->dmaInpChain[descIndex].localAddr = (ULONG) (&nulldaqmap->acqResultsFIFO);
+          pde->dmaInpChain[descIndex].pciAddr = (PDWORD)  virt_to_phys(bufSysAddr);
+		pde->dmaInpChain[descIndex].localAddr = (PDWORD) (&nulldaqmap->acqResultsFIFO);
 		pde->dmaInpChain[descIndex].transferByteCount = blockSize;
-		pde->dmaInpChain[descIndex].descriptorPointer =
-		    (pde->dmaInpChain[descIndex].descriptorPointer & 0xfffffff0L) | 0x00000009L;
+                tmp = (ULONG) pde->dmaInpChain[descIndex].descriptorPointer ;
+                tmp = (tmp & 0xfffffff0L) | 0x00000009L;
+		pde->dmaInpChain[descIndex].descriptorPointer = (PDWORD) tmp;
 
 		bufCount += blockSize;
 		bufSysAddr += (blockSize / 2);
 		if (bufCount >= bufSize) {
-			pde->dmaInpChain[descIndex].descriptorPointer =
-			    (firstBlockAddr & 0xfffffff0L) | 0x00000009L;
+                  tmp = (ULONG) firstBlockAddr;
+                  tmp = ( tmp & 0xfffffff0L) | 0x00000009L;
+                  pde->dmaInpChain[descIndex].descriptorPointer = (PDWORD) tmp;
 
 			if (bufCount > bufSize)
 				pde->dmaInpChain[descIndex].transferByteCount = lastBlockSize;
@@ -341,7 +344,7 @@ adcSetupChainDescriptors(PDEVICE_EXTENSION pde)
 		}
 		blockSize = 0x1000;
 		descIndex++;
-		while (pde->dmaInpChain[descIndex].descriptorPointer == 0xffffffffL)
+		while (pde->dmaInpChain[descIndex].descriptorPointer == (PDWORD)0xffffffffL)
 			descIndex++;
 	}
 	return firstBlockAddr;
@@ -352,7 +355,7 @@ VOID
 adcSetupDmaTransfer(PDEVICE_EXTENSION pde)
 {
 	BYTE *base9080;
-	DWORD firstBlockAddr;
+	PDWORD firstBlockAddr;
 
 	base9080 = (BYTE *) (pde->plxVirtualAddress);
 	/* This is a configuration word, 
@@ -362,34 +365,34 @@ adcSetupDmaTransfer(PDEVICE_EXTENSION pde)
 
 	firstBlockAddr = adcSetupChainDescriptors(pde);
 
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_MODE", PCI9080_DMA1_MODE, 0x00021ac1L, 0);
+	dbg("PLX W %2lX %2lX %8X PCI9080_DMA1_MODE", PCI9080_DMA1_MODE, 0x00021ac1L, 0);
 
 	/* address in PCI (bus) space the transfers start, DMAPADR1, PCI:0x98*/
 	*(DWORD *) (base9080 + PCI9080_DMA1_PCI_ADDR) = 0x00000000L;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_PCI_ADDR",
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_PCI_ADDR",
 		 PCI9080_DMA1_PCI_ADDR, 0x0L, 0);
 
 	/* Where in local memory the transfer starts, DMALADR1, PCI:0x9c */
 	*(DWORD *) (base9080 + PCI9080_DMA1_LOCAL_ADDR) = 0x00000000L;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_LOCAL_ADDR",
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_LOCAL_ADDR",
 		 PCI9080_DMA1_LOCAL_ADDR, 0x0L, 0);
 
 	/* number of _bytes_ to transfer, DMASIZ1, PCI:0xa0 */
 	*(DWORD *) (base9080 + PCI9080_DMA1_COUNT) = 0x00000000L;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_COUNT", PCI9080_DMA1_COUNT, 0x0L, 0);
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_COUNT", PCI9080_DMA1_COUNT, 0x0L, 0);
 
 	/* description point register, DMADPR1, PCI:0xa4 
 	 * DWORD aligned byte address plus 4 config bits
 	 */
 	*(DWORD *) (base9080 + PCI9080_DMA1_DESC_PTR) =
-	    (firstBlockAddr & 0xfffffff0L) | 0x00000009L;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_DESC_PTR", PCI9080_DMA1_DESC_PTR,
-		 (firstBlockAddr & 0xfffffff0L) | 0x00000009L, 0);
+          ((ULONG) firstBlockAddr & 0xfffffff0L) | 0x00000009L;
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_DESC_PTR", PCI9080_DMA1_DESC_PTR,
+            ((ULONG) firstBlockAddr & 0xfffffff0L) | 0x00000009L, 0);
 
 	/*threshold DMATHR, PCI:0xb2*/
 	*(WORD *) (base9080 + PCI9080_DMA1_THRESHOLD) = 0x0000;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_THRESHOLD",
-		 PCI9080_DMA1_THRESHOLD, 0x00, 0);
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_THRESHOLD",
+		 PCI9080_DMA1_THRESHOLD, 0x0L, 0);
 	return ;
 }
 
@@ -401,7 +404,7 @@ adcStartDmaTransfer(PDEVICE_EXTENSION pde)
 	/* command status register, DMACSR1, PCI:0xa9 */
 	/* enable, start, and clear interrupt */
 	*(BYTE *) ((BYTE *) pde->plxVirtualAddress + PCI9080_DMA1_CMD_STATUS) = 0x0b;
-	dbg("PLX W %2x %2x %8x PCI9080_DMA1_CMD_STATUS", PCI9080_DMA1_CMD_STATUS, 0x0b, 0);
+	dbg("PLX W %2lx %2lx %8x PCI9080_DMA1_CMD_STATUS", PCI9080_DMA1_CMD_STATUS, 0x0bL, 0);
 	writeDmaControl(pde, DmaCh1Enable);
 	pde->dmaInpActive = TRUE;
 	return ;
@@ -419,7 +422,7 @@ adcStopDmaTransfer(PDEVICE_EXTENSION pde)
 	base9080 = (BYTE *) (pde->plxVirtualAddress);
 
 	dmaStatus = *(base9080 + PCI9080_DMA1_CMD_STATUS);
-	dbg("PLX R %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+	dbg("PLX R %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 		 PCI9080_DMA1_CMD_STATUS, dmaStatus, 0);
 
 	/* if DMA enabled */
@@ -433,7 +436,7 @@ adcStopDmaTransfer(PDEVICE_EXTENSION pde)
 			 * Why the spinning on thins?
 			 */
 			dmaStatus = *(base9080 + PCI9080_DMA1_CMD_STATUS);
-			dbg("PLX R %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+			dbg("PLX R %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 				 PCI9080_DMA1_CMD_STATUS, dmaStatus, 0);
 
 			if (!timeoutCount--) {
@@ -444,24 +447,24 @@ adcStopDmaTransfer(PDEVICE_EXTENSION pde)
 
 		/* disable DMA, keep all other bits intact */
 		*(base9080 + PCI9080_DMA1_CMD_STATUS) = (dmaStatus & 0xfe);
-		dbg("PLX W %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+		dbg("PLX W %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 			 PCI9080_DMA1_CMD_STATUS, dmaStatus & 0xfe, 0);
 
 		/* get the status back */
 		dmaStatus = *(base9080 + PCI9080_DMA1_CMD_STATUS);
-		dbg("PLX R %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+		dbg("PLX R %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 			 PCI9080_DMA1_CMD_STATUS, dmaStatus, 0);
 
 		/* set the abort flag */
 		*(base9080 + PCI9080_DMA1_CMD_STATUS) = ((dmaStatus & 0xfe) | 0x04);
-		dbg("PLX W %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+		dbg("PLX W %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 			 PCI9080_DMA1_CMD_STATUS, (dmaStatus & 0xfe) | 0x04, 0);
 
 		timeoutCount = timeoutCountVal;
 		while ((dmaStatus & 0x10) == 0x00) {
 			/* wait until the done flag shows up */
 			dmaStatus = *(base9080 + PCI9080_DMA1_CMD_STATUS);
-			dbg("PLX R %2x %2x %8x PCI9080_DMA1_CMD_STATUS",
+			dbg("PLX R %2lx %2x %8x PCI9080_DMA1_CMD_STATUS",
 				 PCI9080_DMA1_CMD_STATUS, dmaStatus, 0);
 
 			if (!timeoutCount--) {
@@ -973,8 +976,7 @@ adcSetScanSeq(PDEVICE_EXTENSION pde, ADC_CONFIG_PT adcConfig)
 
 			switch (flags & 0x0000ff01L) {
 			case DafP3Local16:
-				word2 = (WORD) (DWORD)
-					(&nulldaqmap->dioP3hsioData);
+                                 word2 = (WORD)  ((ULONG) (&nulldaqmap->dioP3hsioData)) & 0xffff; 
 				break;
 
 			case DafCtr16:
@@ -1032,7 +1034,7 @@ adcSetScanSeq(PDEVICE_EXTENSION pde, ADC_CONFIG_PT adcConfig)
 					    pde->counter[3].cascade = DcovCounterSingle;
 					break;
 				}
-				word2 = (WORD) (DWORD) (&nulldaqmap->ctrInput[digChanNum]);
+				word2 = (WORD) (ULONG) (&nulldaqmap->ctrInput[digChanNum]);
 				break;
 
 			case DafCtr32Low:
@@ -1071,18 +1073,18 @@ adcSetScanSeq(PDEVICE_EXTENSION pde, ADC_CONFIG_PT adcConfig)
 				if ((flags & 0x0000ff01L) == DafCtr32High)
 					digChanNum |= 0x0002;
 
-				word2 = (WORD) (DWORD) (&nulldaqmap->ctrInput[digChanNum]);
+				word2 = (WORD) (ULONG) (&nulldaqmap->ctrInput[digChanNum]);
 				break;
 
 			case DafP2Local8:
 				writeDioControl(pde, p2Is82c55);
-				word2 = (WORD) (DWORD) (&nulldaqmap->dioP28255[digChanNum]);
+				word2 = (WORD) (ULONG) (&nulldaqmap->dioP28255[digChanNum]);
 				break;
 
 			case DafP2Exp8:
 				writeDioControl(pde, p2IsExpansionPort);
 				word2 =
-				    (WORD) (DWORD) (&nulldaqmap->
+				    (WORD) (ULONG) (&nulldaqmap->
 						    dioP2ExpansionIO8Bit[digChanNum]);
 				break;
 			}
@@ -1124,7 +1126,7 @@ adcSetTrig(PDEVICE_EXTENSION pde, ADC_CONFIG_PT adcConfig)
 {
 	DWORD level, variance;
 	DWORD tOffset, tGain, hOffset, hGain;
-	WORD levelIndex;
+	WORD levelIndex=0;
 
 	pde->trig[TRIGGER_EVENT].count = adcConfig->adcAcqPreCount / pde->scanSize;
 	pde->trig[STOP_EVENT].count = adcConfig->adcAcqPostCount / pde->scanSize;
@@ -1648,7 +1650,7 @@ adcStart(PDEVICE_EXTENSION pde, daqIOTP p)
 	}
 
 	pde->userInpBufSize = adcStartXfer->adcXferBufLen;
-	pde->userInpBuf = pde->userInpBufHead = pde->modulebuffer;
+	pde->userInpBuf = pde->userInpBufHead = pde->in_buf;
 
 	pde->userInpBufCyclic = adcStartXfer->adcXferMode & DatmCycleOn;
 	pde->maxUserBufScans = pde->userInpBufSize / pde->scanSize;
@@ -1912,7 +1914,10 @@ checkForEvent(PDEVICE_EXTENSION pde, DWORD scansAcquired)
 			}
 			break;
 		}
+        default:
+          printk("unhandled eventExcpected  code %d",  pde->eventExpected); 
 	}
+        
 	return WAITING_FOR_STOP;
 }
 

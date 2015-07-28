@@ -34,30 +34,31 @@
 
 #ifndef IOTTYPES_H
 #define IOTTYPES_H
+#include <linux/types.h>
 
 #ifdef __KERNEL__
-#ifdef DEBUG
-//#warning Doing Debugging driver build
-#define  dbg(format, arg...)   printk(KERN_DEBUG "DB2K:%s:%d: " format "\n",__FUNCTION__, __LINE__ , ## arg)
+#ifdef DEBUG_DB2K
+// #warning Doing Debugging driver build
+#define  dbg(format, arg...)   dev_dbg(Daq_dev, "DB2K:%s:%d: " format "\n",__FUNCTION__, __LINE__ , ## arg)
 #define showwhere() printk(KERN_DEBUG "DB2K: location: %s :%d:\n", __FUNCTION__, __LINE__)
 #else
 #define  dbg(format, arg...) do {} while (0)
 #define  showwhere() do {} while (0)
-#endif /*DEBUG*/
+#endif /*DEBUG_DB2K*/
 
 #define  err(format, arg...) printk(KERN_ERR "DB2K:%s:%d: " format "\n", __FUNCTION__, __LINE__, ## arg)
 #define info(format, arg...) printk(KERN_INFO "DB2K:%s:%d: " format "\n", __FUNCTION__, __LINE__, ## arg)
 #define warn(format, arg...) printk(KERN_WARNING "DB2K:%s:%d: " format "\n", __FUNCTION__, __LINE__, ## arg)
 #else /*__KERNEL__*/
 
-#ifdef DEBUG
+#ifdef DEBUG_DB2K
 //#warning Doing Debugging build
 #define showwhere() fprintf(stderr,"location:%s,%s:%d\n", __FILE__, __FUNCTION__, __LINE__)
 #define  dbg(format, arg...) fprintf(stderr, "Debug:%s:%d: " format "\n",  __FUNCTION__, __LINE__, ## arg)
 #else
 #define showwhere() do {} while (0)
 #define  dbg(format, arg...) do {} while (0)
-#endif /*DEBUG*/
+#endif /*DEBUG_DB2K*/
 
 /*
  * min()/max() macros that also do strict type-checking...
@@ -142,18 +143,15 @@ typedef int * PINT;
 typedef unsigned int DWORD;
 typedef DWORD * PDWORD;
 
-// typedef DWORD HANDLE;
-/* Handle Type Definition */
-typedef DWORD DaqHandleT;
-#define NO_GRIP ((DaqHandleT) -1)
 
+typedef unsigned long ULONG;
 typedef DWORD INTERFACE_TYPE;
-typedef DWORD HGLOBAL;
-typedef DWORD HWND;
+typedef ULONG HGLOBAL;
+typedef PDWORD HWND;
 typedef DWORD HKEY;
 typedef HKEY *PHKEY;
 typedef DWORD HMODULE;
-typedef DWORD FARPROC;
+typedef ULONG FARPROC;
 typedef DWORD HINSTANCE;
 
 typedef DWORD BOOL;
@@ -164,10 +162,13 @@ typedef BOOL *PBOOL;
 
 typedef signed long int LONG;
 typedef signed long int * PLONG;
-typedef unsigned long ULONG;
 
 typedef void VOID;
 typedef VOID * PVOID;
+
+/* Handle Type Definition */
+typedef unsigned long  DaqHandleT;
+#define NO_GRIP ((DaqHandleT) -1)
 
 typedef struct _OSVERSIONINFO {
 	DWORD dwOSVersionInfoSize;

@@ -65,7 +65,7 @@ VOID entryTest(PDEVICE_EXTENSION pde, daqIOTP p);
 VOID
 entryIoctl(PDEVICE_EXTENSION pde, DWORD ioctlCode, daqIOTP pIn)
 {
-	//info("code=0x%08x p1:%d p2:%d, p3:%d, p4:%d, p5:%d", ioctlCode, pIn->p1, pIn->p2, pIn->p3, pIn->p4, pIn->p5);
+  // dbg("code=0x%08x p1:%d p2:%d, p3:%d, p4:%d, p5:%d", ioctlCode, pIn->p1, pIn->p2, pIn->p3, pIn->p4, pIn->p5);
 
 	switch (ioctlCode) {
 	case -1:

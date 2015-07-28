@@ -254,13 +254,13 @@ dacCheckStatus(PDEVICE_EXTENSION pde, DWORD mask)
 }
 
 
-DWORD
+PDWORD
 dacCheckDescriptorBlocks(PDEVICE_EXTENSION pde)
 {
 	WORD i, lastValidBlock = 0xffff;
 	BYTE *ptrA;
 	BYTE *ptrB;
-	DWORD firstBlockAddr = 0L;
+	PDWORD firstBlockAddr = 0L;
 
 	dbg("Entered dacCheckDescriptorBlocks \n");
 	for (i = 0; i < OUTCHAINSIZE; i++) {
@@ -270,28 +270,30 @@ dacCheckDescriptorBlocks(PDEVICE_EXTENSION pde)
 
 		if (ptrA == ptrB) {
 			if (firstBlockAddr == 0L) {
-				firstBlockAddr = (DWORD) ptrA - 0x0000000fL;
+				firstBlockAddr = (PDWORD) ptrA - 0x0000000fL;
 			} else {
 				pde->dmaOutChain[lastValidBlock].
-				    descriptorPointer = (DWORD) ptrA - 0x0000000fL;
+				    descriptorPointer = (PDWORD) ptrA - 0x0000000fL;
 			}
 			lastValidBlock = i;
 		} else {
-			pde->dmaOutChain[i].descriptorPointer = 0xffffffffL;
+                  pde->dmaOutChain[i].descriptorPointer = (PDWORD) 0xffffffffL;
 		}
 	}
 	return firstBlockAddr;
 }
 
 
-DWORD
+PDWORD
 dacSetupChainDescriptors(PDEVICE_EXTENSION pde)
 {
 	PWORD bufPhyAddr;
 	PWORD bufSysAddr = (PWORD) pde->dmaOutBuf;
-	DWORD blockSize, bufSize, firstBlockAddr;
+	ULONG blockSize, bufSize;
+        PDWORD firstBlockAddr;
 	DWORD bufCount = 0;
 	WORD descIndex = 0;
+        ULONG tmp;
 
 	dbg("Entered dacSetupChainDescriptors \n");
 	bufSize = (pde->dmaOutBufSize) * 2L;
@@ -300,25 +302,26 @@ dacSetupChainDescriptors(PDEVICE_EXTENSION pde)
 	firstBlockAddr = dacCheckDescriptorBlocks(pde);
     
 	bufPhyAddr = (PWORD) virt_to_phys((PVOID) bufSysAddr);
-	blockSize = 0x00001000L - ((DWORD) bufPhyAddr & 0x00000fff);
+	blockSize = 0x00001000L - ((ULONG) bufPhyAddr & 0x00000fff);
 
-	while (pde->dmaOutChain[descIndex].descriptorPointer == 0xffffffffL)
+	while (pde->dmaOutChain[descIndex].descriptorPointer == (PDWORD)0xffffffffL)
 		descIndex++;
 
 	while (TRUE) {
 
-        pde->dmaOutChain[descIndex].pciAddr = virt_to_phys(bufSysAddr);
+          pde->dmaOutChain[descIndex].pciAddr = (PDWORD) virt_to_phys(bufSysAddr);
         
-		pde->dmaOutChain[descIndex].localAddr = (ULONG) (&nulldaqMemoryMap->dacFIFO);
+		pde->dmaOutChain[descIndex].localAddr = (PDWORD) (&nulldaqMemoryMap->dacFIFO);
 		pde->dmaOutChain[descIndex].transferByteCount = blockSize;
-		pde->dmaOutChain[descIndex].descriptorPointer =
-			(pde->dmaOutChain[descIndex].descriptorPointer & 0xfffffff0L) | 0x00000001L;
+                tmp = (ULONG) pde->dmaOutChain[descIndex].descriptorPointer ;
+                tmp = (tmp & 0xfffffff0L) | 0x00000001L;
+		pde->dmaOutChain[descIndex].descriptorPointer = (PDWORD) tmp;
 		bufCount += blockSize;
 		bufSysAddr += (blockSize / 2);
 		if (bufCount >= bufSize) {
-
-			pde->dmaOutChain[descIndex].descriptorPointer =
-				(firstBlockAddr & 0xfffffff0L) | 0x00000001L;
+                        tmp = (ULONG) firstBlockAddr;
+                        tmp = (tmp & 0xfffffff0L) | 0x00000001L;
+                        pde->dmaOutChain[descIndex].descriptorPointer = (PDWORD) tmp;
 
 			if (bufCount > bufSize) {
 				pde->dmaOutChain[descIndex].transferByteCount =
@@ -328,20 +331,22 @@ dacSetupChainDescriptors(PDEVICE_EXTENSION pde)
 		}
 		blockSize = 0x1000;
 		descIndex++;
-		while (pde->dmaOutChain[descIndex].descriptorPointer == 0xffffffffL)
+		while (pde->dmaOutChain[descIndex].descriptorPointer == (PDWORD) 0xffffffffL)
 			descIndex++;
 	}
 
 	descIndex++;
-	while (pde->dmaOutChain[descIndex].descriptorPointer == 0xffffffffL) descIndex++;
+	while (pde->dmaOutChain[descIndex].descriptorPointer == (PDWORD) 0xffffffffL) descIndex++;
 	//pde->dmaOutChain[descIndex].descriptorPointer =
 	//	(pde->dmaOutChain[descIndex].descriptorPointer & 0xfffffff0L) | 0x00000001L;
 
-    pde->dmaOutChain[descIndex].descriptorPointer = virt_to_phys(&pde->dmaOutChain[descIndex]);
-	pde->dmaOutChain[descIndex].descriptorPointer = (pde->dmaOutChain[descIndex].descriptorPointer & 0xfffffff0L) | 0x00000001L;
+        pde->dmaOutChain[descIndex].descriptorPointer = (PDWORD) virt_to_phys(&pde->dmaOutChain[descIndex]);
+        tmp = (ULONG) pde->dmaOutChain[descIndex].descriptorPointer ;
+        tmp = (tmp & 0xfffffff0L) | 0x00000001L;
+        pde->dmaOutChain[descIndex].descriptorPointer = (PDWORD) tmp;
 
-    pde->dmaOutChain[descIndex].localAddr = (ULONG) (&nulldaqMemoryMap->dacFIFO);
-    pde->dmaOutChain[descIndex].pciAddr = virt_to_phys(&pde->dmaOutBuf[pde->wf.padBlockStartIndex]);
+    pde->dmaOutChain[descIndex].localAddr = (PDWORD) (&nulldaqMemoryMap->dacFIFO);
+    pde->dmaOutChain[descIndex].pciAddr = (PDWORD) virt_to_phys(&pde->dmaOutBuf[pde->wf.padBlockStartIndex]);
     
 	pde->dmaOutChain[descIndex].transferByteCount = (DWORD) (1920 * 2);
 
@@ -354,9 +359,9 @@ VOID
 dacSetupDmaTransfer(PDEVICE_EXTENSION pde)
 {
 	BYTE *base9080;
-	DWORD firstBlockAddr;
+	ULONG firstBlockAddr;
 	dbg("Entered dacSetupDmaTransfer \n");
-	firstBlockAddr = dacSetupChainDescriptors(pde);
+	firstBlockAddr =  (ULONG) dacSetupChainDescriptors(pde);
 	base9080 = (BYTE *) (pde->plxVirtualAddress);
 	*(DWORD *) (base9080 + PCI9080_DMA0_MODE) = 0x00021ac1L;
 	*(DWORD *) (base9080 + PCI9080_DMA0_PCI_ADDR) = 0x00000000L;
@@ -391,13 +396,13 @@ dacStopDmaTransfer(PDEVICE_EXTENSION pde)
 	base9080 = (BYTE *) (pde->plxVirtualAddress);
 	dmaStatus = *(base9080 + PCI9080_DMA0_CMD_STATUS);
 
-	dbg("PLX R %2x %2x %8x PCI9080_DMA0_CMD_STATUS", PCI9080_DMA0_CMD_STATUS, dmaStatus, 0);
+	dbg("PLX R %2lx %2x %8x PCI9080_DMA0_CMD_STATUS", PCI9080_DMA0_CMD_STATUS, dmaStatus, 0);
 
 	if ((dmaStatus & 0x01) == 0x01) {
 		timeoutCount = timeoutCountVal;
 		while (dmaStatus & 0x10) {
 			dmaStatus = *(base9080 + PCI9080_DMA0_CMD_STATUS);
-			dbg("PLX R %2x %2x %8x PCI9080_DMA0_CMD_STATUS",
+			dbg("PLX R %2lx %2x %8x PCI9080_DMA0_CMD_STATUS",
 				 PCI9080_DMA0_CMD_STATUS, dmaStatus, 0);
 			if (!timeoutCount--) {
 				break;
@@ -405,21 +410,21 @@ dacStopDmaTransfer(PDEVICE_EXTENSION pde)
 		}
 		*(base9080 + PCI9080_DMA0_CMD_STATUS) = (dmaStatus & 0xfe);
 
-		dbg("PLX W %2x %2x %8x PCI9080_DMA0_CMD_STATUS",
+		dbg("PLX W %2lx %2x %8x PCI9080_DMA0_CMD_STATUS",
 			 PCI9080_DMA0_CMD_STATUS, dmaStatus & 0xfe, 0);
 
 		dmaStatus = *(base9080 + PCI9080_DMA0_CMD_STATUS);
-		dbg("PLX R %2x %2x %8x PCI9080_DMA0_CMD_STATUS",
+		dbg("PLX R %2lx %2x %8x PCI9080_DMA0_CMD_STATUS",
 			 PCI9080_DMA0_CMD_STATUS, dmaStatus, 0);
 
 		*(base9080 + PCI9080_DMA0_CMD_STATUS) = ((dmaStatus & 0xfe) | 0x04);
-		dbg("PLX W %2x %2x %8x PCI9080_DMA0_CMD_STATUS",
+		dbg("PLX W %2lx %2x %8x PCI9080_DMA0_CMD_STATUS",
 			 PCI9080_DMA0_CMD_STATUS, (dmaStatus & 0xfe) | 0x04, 0);
 
 		timeoutCount = timeoutCountVal;
 		while ((dmaStatus & 0x10) == 0x00) {
 			dmaStatus = *(base9080 + PCI9080_DMA0_CMD_STATUS);
-			dbg("PLX R %2x %2x %8x PCI9080_DMA0_CMD_STATUS",
+			dbg("PLX R %2lx %2x %8x PCI9080_DMA0_CMD_STATUS",
 				 PCI9080_DMA0_CMD_STATUS, dmaStatus, 0);
 
 			if (!timeoutCount--) {
@@ -687,12 +692,12 @@ computePadBlockInfo(PDEVICE_EXTENSION pde)
 			lastCycleSize = pde->dmaOutBufSize;
 
 		descNo = 0L;
-		while (pde->dmaOutChain[descNo].descriptorPointer == 0xffffffffL)
+		while (pde->dmaOutChain[descNo].descriptorPointer == (PDWORD) 0xffffffffL)
 			descNo++;
 
 		while (lastCycleSize > (pde->dmaOutChain[descNo].transferByteCount / 2L)) {
 			lastCycleSize -= (pde->dmaOutChain[descNo++].transferByteCount / 2L);
-			while (pde->dmaOutChain[descNo].descriptorPointer == 0xffffffffL)
+			while (pde->dmaOutChain[descNo].descriptorPointer == (PDWORD) 0xffffffffL)
 				descNo++;
 		}        
 		pde->wf.finalDesc = descNo;
@@ -832,7 +837,7 @@ dacSetupBuffer(PDEVICE_EXTENSION pde)
 
 	pde->wf.dmaStopPending = FALSE;
 	bufPhyAddr = (PWORD) virt_to_phys((PVOID) pde->dmaOutBuf);
-	pde->dmaOutBufSize = DMAOUTBUFSIZE - 0x800L - (((DWORD) bufPhyAddr & 0x00000fff) / 2L);
+	pde->dmaOutBufSize = DMAOUTBUFSIZE - 0x800L - (((ULONG) bufPhyAddr & 0x00000fff) / 2L);
 	pde->wf.padBlockStartIndex = pde->dmaOutBufSize;
 	pde->wf.stopCountInSamples = pde->wf.stopCount * pde->wf.numWaveforms;
 
@@ -1014,7 +1019,7 @@ VOID
 dacStop(PDEVICE_EXTENSION pde, daqIOTP p)
 {
 	DWORD i;
-	DWORD dwUnlock; // 20140529 Kamal - ERROR- This variable is not set before being used in 'if' test below.
+	DWORD dwUnlock = NO_ERROR; // 20140529 Kamal - ERROR- This variable is not set before being used in 'if' test below.
 	dbg("Entered dacStop \n");
 
 	enterDacStatusMutex(pde);
@@ -1049,6 +1054,7 @@ dacStart(PDEVICE_EXTENSION pde, daqIOTP p)
 {
 	DAC_START_PT   start = (DAC_START_PT)p;
 	DWORD ch;
+        ULONG cnt;
 
 	dbg("Welcome to dacStart\n");
 
@@ -1114,7 +1120,10 @@ dacStart(PDEVICE_EXTENSION pde, daqIOTP p)
 			}      
 		}
 
-		copy_from_user(pde->dacOutbuffer[ch] ,start->dacXferBuf,start->dacXferBufLen*2);            
+		cnt = copy_from_user(pde->dacOutbuffer[ch] ,start->dacXferBuf,start->dacXferBufLen*2);            
+                if (cnt != 0) {
+                  info("dac.c: copy_from_user failed to copy all bytes\n");
+                }
 
 		pde->dacOut[ch].buf = pde->dacOut[ch].bufHead = (WORD *)(pde->dacOutbuffer[ch]);
 

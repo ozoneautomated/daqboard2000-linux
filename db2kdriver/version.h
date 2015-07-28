@@ -44,7 +44,7 @@
 #define  PRODNAME "DaqBoard/2000"
 
 #define VER_MAJOR    3
-#define VER_MINOR    00
+#define VER_MINOR    01
 #define VER_REVISION 00
 
 #define VER_RELEASE "2.00.00"

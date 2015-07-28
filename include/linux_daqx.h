@@ -164,7 +164,10 @@ BOOL WriteFile(DaqHandleT handle, PVOID buffer, DWORD count,
 		PDWORD written, PDWORD overlap);
 BOOL CloseHandle(DaqHandleT handle);
 
-DWORD CreateFile(PCHAR filename, DWORD accessMode, 
+DaqHandleT CreateFile(PCHAR filename, DWORD accessMode, 
+		 DWORD shareMode, DWORD Security, 
+		 DWORD createMode, DWORD flagsAttributes, DWORD temphandle);
+DaqHandleT OpenDevice(PCHAR filename, DWORD accessMode, 
 		 DWORD shareMode, DWORD Security, 
 		 DWORD createMode, DWORD flagsAttributes, DWORD temphandle);
 DWORD GetCurrentProcessId(VOID);

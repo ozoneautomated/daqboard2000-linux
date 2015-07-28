@@ -84,6 +84,9 @@ extern "C" {
 		BLOCK_MEM_IO = 0x28,
 	} ItfCommandCodeT;
 
+	/* this structure must be at least as large as the largest
+         * structure passed thru DeviceIoControl() or itfExecuteCommand()
+         */
 
 	typedef struct {
 		DWORD errorCode;
@@ -112,6 +115,16 @@ extern "C" {
 		DWORD p23;
 		DWORD p24;
 		DWORD p25;
+		DWORD p26;
+		DWORD p27;
+		DWORD p28;
+		DWORD p29;
+		DWORD p30;
+		DWORD p31;
+		DWORD p32;
+		DWORD p33;
+		DWORD p34;
+		DWORD p35;
 	} daqIOT, *daqIOTP;
 
 
@@ -229,8 +242,8 @@ extern "C" {
 		DWORD adcPeriodmsec;
 		DWORD adcPeriodnsec;
 		DWORD adcTrigSource;
-		DWORD adcTrigLevel;
-		DWORD adcTrigHyst;
+		PDWORD adcTrigLevel;
+		PDWORD adcTrigHyst;
 		DWORD adcTrigChannel;
 		SCAN_SEQ_PT adcScanSeq;
 		DWORD adcScanLength;
@@ -240,7 +253,7 @@ extern "C" {
 		PDWORD adcEnhTrigBipolar;
 		DWORD adcEnhTrigCount;
 		DaqAdcGain *adcEnhTrigGain;
-		DWORD adcEnhTrigOpcode;
+		PCHAR adcEnhTrigOpcode;
 		PDWORD adcEnhTrigChan;
 		DWORD adcDataPack;
 		DaqEnhTrigSensT *adcEnhTrigSens;
@@ -288,7 +301,7 @@ extern "C" {
 		DWORD errorCode;
 		DWORD chan;
 		DWORD option;
-		DWORD usrPtr;
+		PDWORD usrPtr;
 		DWORD dtEnum;
 		DWORD chanType;
 	} ADC_HWINFO_T, *ADC_HWINFO_PT;
@@ -337,7 +350,7 @@ extern "C" {
 		DWORD endChan;
 		DWORD devType;
 		DWORD chanOptType;
-		DWORD optValue;
+		ULONG optValue;
 	} ADC_CHAN_OPT_T, *ADC_CHAN_OPT_PT;
 
 
@@ -552,7 +565,7 @@ extern "C" {
 		DWORD errorCode;
 		DWORD action;
 		DWORD memType;
-		DWORD addr;
+		ULONG addr;
 		DWORD data;
 	} DEV_DSP_CMDS_T, *DEV_DSP_CMDS_PT;
 

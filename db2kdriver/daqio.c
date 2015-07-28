@@ -62,7 +62,7 @@
 #include "daqio.h"
 #include "w32ioctl.h"
 
-#ifdef DEBUG
+#ifdef DEBUG_DB2K
 static HW *nulldaqmap = (HW *) NULL;
 #endif
 
@@ -80,8 +80,8 @@ writeAcqScanListEntry(PDEVICE_EXTENSION pde, WORD scanListEntry)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Acquisition Scan List FIFO",
-		 &nulldaqmap->acqScanListFIFO, scanListEntry);
+	dbg("W reg:0x%p val:0x%08x Acquisition Scan List FIFO",
+             &nulldaqmap->acqScanListFIFO, scanListEntry);
 
 	fpgaPause(pde);
 	fpga->acqScanListFIFO = scanListEntry & 0x00ff;
@@ -98,8 +98,8 @@ readAcqStatus(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	status = fpga->acqStatus;
 
-	dbg("R reg:0x%02x val:0x%08x Acquisition Status",
-		 &nulldaqmap->acqStatus, status);
+	dbg("R reg:0x%p val:0x%08x Acquisition Status",
+             &nulldaqmap->acqStatus, status);
 
 	if (status & AcqResultsFIFOOverrun)
 		info("AcqStatus: Acq Results FIFO Overrun!\n");
@@ -121,8 +121,8 @@ writeAcqControl(PDEVICE_EXTENSION pde, WORD control)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Acquisition Control",
-		 &nulldaqmap->acqControl, control);
+	dbg("W reg:0x%p val:0x%08x Acquisition Control",
+             &nulldaqmap->acqControl, control);
 
 	fpgaPause(pde);
 	fpga->acqControl = control;
@@ -135,14 +135,14 @@ writeAcqPacerClock(PDEVICE_EXTENSION pde, DWORD divisorHigh, DWORD divisorLow)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Acquisition Pacer Clock Divisor Low",
-		 &nulldaqmap->acqPacerClockDivLow, divisorLow);
+	dbg("W reg:0x%p val:0x%08x Acquisition Pacer Clock Divisor Low",
+             &nulldaqmap->acqPacerClockDivLow, divisorLow);
 
 	fpgaPause(pde);
 	fpga->acqPacerClockDivLow = divisorLow;
 
-	dbg("W reg:0x%02x val:0x%08x Acquisition Pacer Clock Divisor High",
-		 &nulldaqmap->acqPacerClockDivHigh, divisorHigh);
+	dbg("W reg:0x%p val:0x%08x Acquisition Pacer Clock Divisor High",
+             &nulldaqmap->acqPacerClockDivHigh, divisorHigh);
 
 	fpgaPause(pde);
 	fpga->acqPacerClockDivHigh = (WORD) divisorHigh;
@@ -158,8 +158,8 @@ readAcqResultsFifo(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->acqResultsFIFO;
 
-	dbg("R reg:0x%02x val:0x%08x Acquisition Results FIFO",
-		 &nulldaqmap->acqResultsFIFO, result);
+	dbg("R reg:0x%p val:0x%08x Acquisition Results FIFO",
+             &nulldaqmap->acqResultsFIFO, result);
 
 	return result;
 }
@@ -174,8 +174,8 @@ peekAcqResultsFifo(PDEVICE_EXTENSION pde)
 	result = fpga->acqResultsShadow;
 
 
-	dbg("R reg:0x%02x val:0x%08x Acquisition Results Shadow",
-		 &nulldaqmap->acqResultsShadow, result);
+	dbg("R reg:0x%p val:0x%08x Acquisition Results Shadow",
+             &nulldaqmap->acqResultsShadow, result);
 
 	return result;
 }
@@ -198,10 +198,10 @@ readAcqScanCounter(PDEVICE_EXTENSION pde)
 	status = fpga->acqStatus;
 
 
-	dbg("R reg:0x%02x val:0x%08x Acquisition Scan Counter",
-		 &nulldaqmap->acqScanCounter, newCounterValue);
-	dbg("R reg:0x%02x val:0x%08x Acquisition Status",
-		 &nulldaqmap->acqStatus, status);
+	dbg("R reg:0x%p val:0x%08x Acquisition Scan Counter",
+             &nulldaqmap->acqScanCounter, newCounterValue);
+	dbg("R reg:0x%p val:0x%08x Acquisition Status",
+             &nulldaqmap->acqStatus, status);
 
 
 	if ( (pde->eventExpected == TRIGGER_EVENT) &&
@@ -300,7 +300,7 @@ readAcqTriggerCount(PDEVICE_EXTENSION pde)
 	triggerCount = fpga->acqTriggerCount;
 
 
-	dbg("R reg:0x%02x val:0x%08x Acquisition Trigger Count",
+	dbg("R reg:0x%2p val:0x%08x Acquisition Trigger Count",
 		 &nulldaqmap->acqTriggerCount, triggerCount);
 
 	triggerScan = (pde->adcCurrentScanCount & 0xffff0000) + (DWORD) triggerCount;
@@ -315,7 +315,7 @@ writeAcqDigitalMark(PDEVICE_EXTENSION pde, WORD markValue)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Digital Mark",
+	dbg("W reg:0x%2p val:0x%08x Digital Mark",
 		 &nulldaqmap->acqDigitalMark, markValue);
 
 	fpgaPause(pde);
@@ -331,7 +331,7 @@ readAcqDigitalMark(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->acqDigitalMark;
 
-	dbg("R reg:0x%02x val:0x%08x Digital Mark",
+	dbg("R reg:0x%p val:0x%08x Digital Mark",
 		 &nulldaqmap->acqDigitalMark, result);
 
 	return result;
@@ -345,7 +345,7 @@ writeDmaControl(PDEVICE_EXTENSION pde, WORD control)
 	fpgaPause(pde);
 	fpga->dmaControl = control;
 
-	dbg("W 0x%02x 0x%02x 0x%02x DMA Control", 
+	dbg("W 0x%p 0x%02x  DMA Control", 
 	    &nulldaqmap->dmaControl, control);
 
 	return ;
@@ -359,7 +359,7 @@ readDacStatus(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->dacStatusReg;
 
-	dbg("R reg:0x%02x val:0x%08x Analog Output Dac Status",
+	dbg("R reg:0x%p val:0x%08x Analog Output Dac Status",
 		 &nulldaqmap->dacStatusReg, result);
 
 	return result;
@@ -374,7 +374,7 @@ readDacScanCounter(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	newCounterValue = fpga->dacScanCounter;
 
-	dbg("R reg:0x%02x val:0x%08x Dma output Scan Counter",
+	dbg("R reg:0x%p val:0x%08x Dma output Scan Counter",
 		 &nulldaqmap->dacScanCounter, newCounterValue);
 
 
@@ -394,7 +394,7 @@ writeDacControl(PDEVICE_EXTENSION pde, WORD control)
 	fpgaPause(pde);
 	fpga->dacControl = control;
 
-	dbg("W reg:0x%02x val:0x%08x Analog Output Control",
+	dbg("W reg:0x%p val:0x%08x Analog Output Control",
 		 &nulldaqmap->dacControl, control);
 
 	return ;
@@ -430,7 +430,7 @@ writeDac(PDEVICE_EXTENSION pde, WORD dacNo, SHORT outValue)
 	fpga->dacSetting[dacNo] = outValue;
 
 
-	dbg("W reg:0x%02x val:0x%08x Analog Output DAC FIFO",
+	dbg("W reg:0x%p val:0x%08x Analog Output DAC FIFO",
 		 &nulldaqmap->dacSetting[dacNo], outValue);
 
 
@@ -451,7 +451,7 @@ writeDacPacerClock(PDEVICE_EXTENSION pde, WORD divisor)
 	fpgaPause(pde);
 	fpga->dacPacerClockDiv = divisor;
 
-	dbg("W reg:0x%02x val:0x%08x Analog Output Pacer Clock Divisor",
+	dbg("W reg:0x%p val:0x%08x Analog Output Pacer Clock Divisor",
 		 &nulldaqmap->dacPacerClockDiv, divisor);
 
 	return ;
@@ -465,7 +465,7 @@ writePosRefDac(PDEVICE_EXTENSION pde, BYTE posRef)
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
 
-	dbg("W reg:0x%02x val:0x%08x Posref DAC", 
+	dbg("W reg:0x%p val:0x%08x Posref DAC", 
 	    &nulldaqmap->refDacs,
 	    ((WORD) posRef) | PosRefDacSelect);
 
@@ -488,7 +488,7 @@ writeNegRefDac(PDEVICE_EXTENSION pde, BYTE negRef)
 	WORD timeoutValue = 10000;
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Negref DAC", 
+	dbg("W reg:0x%p val:0x%08x Negref DAC", 
 	    &nulldaqmap->refDacs,
 	    ((WORD) negRef) | NegRefDacSelect);
 
@@ -509,7 +509,7 @@ writeTrigControl(PDEVICE_EXTENSION pde, WORD trigCommand)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Trigger Control",
+	dbg("W reg:0x%p val:0x%08x Trigger Control",
 		 &nulldaqmap->trigControl, trigCommand);
 
 	fpgaPause(pde);
@@ -526,7 +526,7 @@ readTrigStatus(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->trigStatus;
 
-	dbg("R reg:0x%02x val:0x%08x Trigger Status", 
+	dbg("R 0x%p val:0x%08x Trigger Status", 
 	    &nulldaqmap->trigStatus, result);
 
 	return result;
@@ -539,7 +539,7 @@ writeTrigHysteresis(PDEVICE_EXTENSION pde, WORD trigHysteresis)
 	WORD timeoutValue = 10000;
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Analog TRIGA(Hysteresis) DAC",
+	dbg("W 0x%p val:0x%08x Analog TRIGA(Hysteresis) DAC",
 	    &nulldaqmap->trigDacs,
 	    (trigHysteresis & 0x0fff) | HysteresisDacSelect);
 
@@ -558,7 +558,7 @@ writeTrigThreshold(PDEVICE_EXTENSION pde, WORD trigThreshold)
 	WORD timeoutValue = 10000;
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Analog TRIGB(Threshold) DAC",
+	dbg("W 0x%p val:0x%08x Analog TRIGB(Threshold) DAC",
 	    &nulldaqmap->trigDacs,
 	    (trigThreshold & 0x0fff) | ThresholdDacSelect);
 
@@ -577,7 +577,7 @@ writeCalEepromControl(PDEVICE_EXTENSION pde, WORD control)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Acquisition Control",
+	dbg("W 0x%p val:0x%08x Acquisition Control",
 	    &nulldaqmap->calEepromControl, control);
 
 	fpgaPause(pde);
@@ -592,7 +592,7 @@ writeCalEeprom(PDEVICE_EXTENSION pde, WORD value)
 	WORD timeoutValue = 10000;
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x Calibration Table EEPROM",
+	dbg("W 0x%p val:0x%08x Calibration Table EEPROM",
 	    &nulldaqmap->calEeprom, value);
 
 	fpgaPause(pde);
@@ -615,7 +615,7 @@ readCalEeprom(PDEVICE_EXTENSION pde)
 	eepromValue = fpga->calEeprom;
 
 
-	dbg("R reg:0x%02x val:0x%08x Calibration Table EEPROM",
+	dbg("R 0x%p val:0x%08x Calibration Table EEPROM",
 	     &nulldaqmap->calEeprom, eepromValue);
 
 	while (readDacStatus(pde) & CalBusy) {
@@ -635,7 +635,7 @@ readCtrTmrStatus(PDEVICE_EXTENSION pde)
 	result = fpga->ctrTmrStatus;
 
 
-	dbg("R reg:0x%02x val:0x%08x Counter/Timer Status",
+	dbg("R 0x%p val:0x%08x Counter/Timer Status",
 	    &nulldaqmap->ctrTmrStatus, result);
 
 	return result;
@@ -647,7 +647,7 @@ writeTmrCtrControl(PDEVICE_EXTENSION pde, WORD control)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 	
-	dbg("W reg:0x%02x val:0x%08x Counter/Timer Control",
+	dbg("W 0x%p val:0x%08x Counter/Timer Control",
 	    &nulldaqmap->ctrTmrControl, control);
 
 	fpgaPause(pde);
@@ -664,7 +664,7 @@ readCtrInput(PDEVICE_EXTENSION pde, WORD ctrNo)
 	fpgaPause(pde);
 	result = fpga->ctrInput[ctrNo];
 
-	dbg("R reg:0x%02x val:0x%08x Counter Input",
+	dbg("R 0x%p val:0x%08x Counter Input",
 	    &nulldaqmap->ctrInput[ctrNo], result);
 
 	return result;
@@ -677,7 +677,7 @@ writeTmrDivisor(PDEVICE_EXTENSION pde, WORD tmrNo, WORD divisor)
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
 
-	dbg("W reg:0x%02x val:0x%08x Timer Divisor",
+	dbg("W 0x%p val:0x%08x Timer Divisor",
 	    &nulldaqmap->timerDivisor[tmrNo], divisor);
 
 	fpgaPause(pde);
@@ -694,7 +694,7 @@ readDioStatus(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->dioStatus;
 
-	dbg("R reg:0x%02x val:0x%08x Digital I/O Status",
+	dbg("R 0x%p val:0x%08x Digital I/O Status",
 	    &nulldaqmap->dioStatus, result);
 
 	return result;
@@ -707,7 +707,7 @@ writeDioControl(PDEVICE_EXTENSION pde, WORD control)
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
 
-	dbg("W reg:0x%02x val:0x%08x Digital I/O Control",
+	dbg("W 0x%p val:0x%08x Digital I/O Control",
 	    &nulldaqmap->dioControl, control);
 
 	fpgaPause(pde);
@@ -724,7 +724,7 @@ readHSIOPort(PDEVICE_EXTENSION pde)
 	fpgaPause(pde);
 	result = fpga->dioP3hsioData;
 
-	dbg("R reg:0x%02x val:0x%08x HSIO Data",
+	dbg("R 0x%p val:0x%08x HSIO Data",
 	    &nulldaqmap->dioP3hsioData, result);
 
 	return result;
@@ -736,7 +736,7 @@ writeHSIOPort(PDEVICE_EXTENSION pde, WORD portValue)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x HSIO Data",
+	dbg("W 0x%p val:0x%08x HSIO Data",
 	    &nulldaqmap->dioP3hsioData, portValue);
 
 	fpgaPause(pde);
@@ -753,7 +753,7 @@ read8255Port(PDEVICE_EXTENSION pde, WORD portNumber)
 	fpgaPause(pde);
 	result = fpga->dioP28255[portNumber];
 
-	dbg("R reg:0x%02x val:0x%08x 8255 Port",
+	dbg("R 0x%p val:0x%08x 8255 Port",
 	    &nulldaqmap->dioP28255[portNumber], result);
 	
 	return result;
@@ -766,7 +766,7 @@ write8255Port(PDEVICE_EXTENSION pde, WORD portNumber, WORD portValue)
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
 
-	dbg("W reg:0x%02x val:0x%08x 8255",
+	dbg("W 0x%p val:0x%08x 8255",
 	    &nulldaqmap->dioP28255[portNumber],portValue);
 
 	fpgaPause(pde);
@@ -783,7 +783,7 @@ readExpansionIOPort(PDEVICE_EXTENSION pde, WORD portNumber)
 	fpgaPause(pde);
 	result = fpga->dioP2ExpansionIO8Bit[portNumber];
 
-	dbg("R reg:0x%02x val:0x%08x P2 Expansion I/O",
+	dbg("R 0x%p val:0x%08x P2 Expansion I/O",
 	    &nulldaqmap->dioP2ExpansionIO8Bit[portNumber], result);
 
 	return result;
@@ -795,7 +795,7 @@ writeExpansionIOPort(PDEVICE_EXTENSION pde, WORD portNumber, WORD portValue)
 {
 	HW *fpga = (HW *) pde->daqBaseAddress;
 
-	dbg("W reg:0x%02x val:0x%08x P2 Expansion I/O",
+	dbg("W 0x%p val:0x%08x P2 Expansion I/O",
 	    &nulldaqmap->dioP2ExpansionIO8Bit[portNumber], portValue);
 
 	fpgaPause(pde);
@@ -817,8 +817,8 @@ daqIoRead(PDEVICE_EXTENSION pde, DAQPIRP * irp)
 		*((DWORD *) irp->SystemBuffer) = (WORD) (*((WORD *) readAddress));
 	}
 
-	dbg("R reg:0x%02x val:0x%08x REG_READ",
-	    irp->Address, *((DWORD *) irp->SystemBuffer));
+	dbg("R 0x%x val:0x%08x REG_READ",
+	     irp->Address, *((DWORD *) irp->SystemBuffer));
 
 	return DaqIoNoErrors;
 }
@@ -832,12 +832,12 @@ daqIoWrite(PDEVICE_EXTENSION pde, DAQPIRP * irp)
 	writeAddress = (BYTE *) pde->daqBaseAddress + (DWORD) irp->Address;
 	if (writeAddress == (BYTE *) & fpga->acqPacerClockDivLow) {
 		*((DWORD *) writeAddress) = *((DWORD *) irp->SystemBuffer);
-		dbg("W reg:0x%02x val:0x%08x REG_WRITE",
+		dbg("W 0x%x val:0x%08x REG_WRITE",
 		    irp->Address,*((DWORD *) irp->SystemBuffer));
 
 	} else {
 		*((WORD *) writeAddress) = *((WORD *) irp->SystemBuffer);
-		dbg("W reg:0x%02x val:0x%08x REG_WRITE",
+		dbg("W 0x%x val:0x%08x REG_WRITE",
 		    irp->Address, *((WORD *) irp->SystemBuffer));
 	}
 	return DaqIoNoErrors;

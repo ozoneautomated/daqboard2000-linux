@@ -181,7 +181,7 @@ readCalConstants(PDEVICE_EXTENSION pde, DaqCalTableTypeT tableType)
 BOOL
 writeBlockToEEPROM(PDEVICE_EXTENSION pde, WORD * dataAddr, WORD * eepromAddr)
 {
-	WORD destAddr = (WORD) ((DWORD) eepromAddr & 0xffff);
+	WORD destAddr = (WORD) ((ULONG) eepromAddr & 0xffff);
 	WORD *srcAddr = dataAddr;
 	WORD i;
 
