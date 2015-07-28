@@ -9,8 +9,9 @@ SYSINC_DIR = $(PREFIX)/include
 
 # Common flags
 CC = gcc
-CFLAGS = -I$(INC_DIR) -L$(LIB_DIR) -fPIC -DDLINUX -Wall
-#CFLAGS = -ggdb $(DEBUG) -I$(INC_DIR) -L$(LIB_DIR) -fPIC -DDLINUX -Wall
+DEBUG=-DCONFIG_DYNAMIC_DEBUG -DDEBUG_DB2K
+#CFLAGS = -I$(INC_DIR) -L$(LIB_DIR) -fPIC -DDLINUX -Wall
+CFLAGS = -ggdb $(DEBUG) -I$(INC_DIR) -L$(LIB_DIR) -fPIC -DDLINUX -Wall
 #CFLAGS = -ggdb $(DEBUG) -I$(INC_DIR) -L$(LIB_DIR) -fPIC -DDLINUX -Wall -fno-stack-protector
 #CFLAGS = -ggdb $(DEBUG) -I$(INC_DIR) -L$(LIB_DIR) -march=i486 -fPIC -DDLINUX -Wall
 
@@ -59,7 +60,7 @@ KDIR ?= /lib/modules/`uname -r`/build
 SYSDRV_DIR=/lib/modules/`uname -r`/kernel/drivers/daq/
 
 all:	$(LIB_DIR) $(BIN_DIR) \
-    	driver $(LIBNAME) $(SHLIB) \
+	driver $(LIBNAME) $(SHLIB) \
 	$(EXAMPLES)
 
 # create output directories
@@ -76,8 +77,11 @@ $(BIN_DIR):
         fi;
 
 # Build the driver
+# ADD V=1 for verbose build lines
+# CFLAGS_MODULE is used for compiling the driver/module
 driver:
-	$(MAKE) -C $(KDIR) M=$$PWD modules
+	$(MAKE)  -C $(KDIR) M=$$PWD \
+	CFLAGS_MODULE='-DDEBUG_DB2K -DCONFIG_DYNAMIC_DEBUG'  modules
 
 
 # DaqBoard2000 library
@@ -106,7 +110,7 @@ $(EXAMPLES): $(LIBNAME)
 
 install: all install-driver install-lib
 
-install-driver: driver create-devices
+install-driver: driver 
 # device driver
 	@if [ -w /lib/modules/`uname -r`/kernel/ ] ; then\
 	   echo "Installing driver to $(SYSDRV_DIR)" ; \
@@ -118,16 +122,6 @@ install-driver: driver create-devices
 	else \
 	   echo "No write access to install driver";\
 	fi
-
-create-devices:
-# Create /dev/ entries
-	mkdir -p /dev/db2k
-	mknod -m 0666 /dev/db2k/DaqBoard2K0 c $(DB2K_MAJOR) 0
-	mknod -m 0666 /dev/db2k/DaqBoard2K1 c $(DB2K_MAJOR) 1
-	mknod -m 0666 /dev/db2k/DaqBoard2K2 c $(DB2K_MAJOR) 2
-	mknod -m 0666 /dev/db2k/DaqBoard2K3 c $(DB2K_MAJOR) 3 
-	#addgroup --system db2k
-	#chown root:db2k /dev/db2k/*
 
 
 install-lib:
@@ -194,8 +188,7 @@ uninstall:
 	rm -f /usr/lib/libdaqx.a
 
 load:
-	#echo 8 > /proc/sys/kernel/printk
-	modprobe db2k
+	./scripts/db2k_load
 
 unload:
 	rmmod db2k
