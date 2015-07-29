@@ -244,11 +244,9 @@ RegOpenKey(HKEY hKey, PCHAR lpSubKey, PHKEY phkResult)
 	char string2[]="\\daqbrd2k";
 	int match;
 	char* substring;
-	// size_t size;
 
 
 	substring= strrchr( (char *) lpSubKey,'\\');
-	// size = strlen(string2);
 	//fprintf(stderr,"substring %s  string2 %s  \n",substring,string2);
 	match = strncmp(substring,string2,9);
 
