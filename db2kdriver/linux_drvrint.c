@@ -74,6 +74,7 @@
 /* global data */
 static DEVICE_EXTENSION *pdeArray[MAX_SUPPORTED_DEVICE];
 static int bufsize = 8 * PAGE_SIZE;
+static int Major = 0;
 
 //static PCI_SITE daqBoard[MAX_SUPPORTED_DEVICE];
 
@@ -413,10 +414,10 @@ db2k_init(void)
     }    
 
     /* Get our major before stepping on any other toes */
-    errstat = register_chrdev(DB2K_MAJOR, "db2k", &db2k_fops);
-    if (errstat < 0)
+    Major = register_chrdev(0, "db2k", &db2k_fops);
+    if (Major < 0)
     {
-	info("Unable to get major %d for db2k device", (int) DB2K_MAJOR);
+        info("Unable to get major for db2k device");
 	goto out;
     }
 
@@ -504,7 +505,7 @@ db2k_init(void)
 	errstat = allocate_buffers(pde);
 	if (errstat == 0)
 	{
-	    info("Successfully Installed driver db2k V0.1, MAJOR = %i", (int) DB2K_MAJOR);
+            info("Successfully Installed driver db2k V0.2, MAJOR = %i", Major);
 	    /* somewhere from here on in there are SMP issues */
 	    if (checkForEEPROM(pde))
 	    {
@@ -888,7 +889,7 @@ db2k_cleanup(void)
 	dbg("memory kfree'd for board %d.",i);
     }
 
-    unregister_chrdev(DB2K_MAJOR, "db2k");
+    unregister_chrdev(Major, "db2k");
     info("All boards released, unloading.");
 
     //Cleanup the mess you made in the proc_fs
@@ -972,7 +973,7 @@ db2k_open(struct inode *inode, struct file *file)
     }
     spin_unlock(&pde->open_lock);
 
-    info("open major/minor = %d/%d", DB2K_MAJOR, minor);
+    info("open major/minor = %d/%d", Major, minor);
 
     try_module_get(THIS_MODULE);
 
