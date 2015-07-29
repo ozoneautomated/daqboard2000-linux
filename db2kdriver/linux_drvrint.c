@@ -73,26 +73,48 @@
 
 /* global data */
 static DEVICE_EXTENSION *pdeArray[MAX_SUPPORTED_DEVICE];
+static int bufsize = 8 * PAGE_SIZE;
+
 //static PCI_SITE daqBoard[MAX_SUPPORTED_DEVICE];
+
+/*
+ *	pages_flag - set or clear a flag for sequence of pages
+ *     (from https://github.com/makelinux/ldt.git)
+ *
+ *	more generic solution instead of SetPageReserved, ClearPageReserved etc
+ *
+ *	
+ */
+
+static void pages_flag(struct page *page, int page_num, int mask, int value)
+{
+	for (; page_num; page_num--, page++)
+		if (value)
+			__set_bit(mask, &page->flags);
+		else
+			__clear_bit(mask, &page->flags);
+}
+
 
 static int __init db2k_init(void);
 static void db2k_cleanup(void);
-static void __init db2k_irq(int irq, void *dev_id, struct pt_regs *registerp);
+static irqreturn_t __init db2k_irq(int irq, void *dev_id);
 static int __init db2k_detect(int);
 static int __init db2k_probe(void);
 static int __init allocate_buffers(DEVICE_EXTENSION * pde);
+typedef      int (*flush_t) (struct file *, fl_owner_t id);
 
 static int db2k_open(struct inode *inode, struct file *file);
-static int db2k_flush(struct file *filp);
+static int db2k_flush(struct file *filp, fl_owner_t id);
 static int db2k_close(struct inode *inode, struct file *file);
 static int db2k_mmap(struct file *flip, struct vm_area_struct *vma);
-static int db2k_ioctl_check(unsigned int cmd, unsigned long arg);
-static int db2k_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static long db2k_ioctl_check(unsigned int cmd, unsigned long arg);
+static long db2k_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 static int proc_setup(void);
-static int proc_2k0_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
-static int proc_2k1_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
-static int proc_2k2_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
-static int proc_2k3_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
+static ssize_t proc_2k0_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
+static ssize_t proc_2k1_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
+static ssize_t proc_2k2_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
+static ssize_t proc_2k3_type_read(struct file *filp,char *buf,size_t count,loff_t *offp);
 static int proc_2k0_type_open(struct inode *inode, struct file *file);
 static int proc_2k1_type_open(struct inode *inode, struct file *file);
 static int proc_2k2_type_open(struct inode *inode, struct file *file);
@@ -120,6 +142,7 @@ static struct proc_dir_entry *type0_proc_entry;
 static struct proc_dir_entry *type1_proc_entry;
 static struct proc_dir_entry *type2_proc_entry;
 static struct proc_dir_entry *type3_proc_entry;
+
 
 static struct file_operations proc_fops0 = {
   read: proc_2k0_type_read,
@@ -157,9 +180,9 @@ static int proc_2k0_type_open(struct inode *inode, struct file *file)
     return 0;
 }
 
-static int proc_2k0_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
+static ssize_t proc_2k0_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
 {
-    int len = 0;
+    ssize_t len = 0;
     DEVICE_EXTENSION *pde = pdeArray[0];
     char msg[8]; // Our msg is only 1-3 bytes long.
 
@@ -189,7 +212,10 @@ static int proc_2k0_type_read(struct file *filp,char *buf,size_t count,loff_t *o
 	len = count;
     }
 
-    copy_to_user(buf, msg, len);
+    if  ( copy_to_user(buf, msg, len) != 0)  {
+      info("proc_2k3_type_read:  copy_to_user did not copy all bytes");
+      len =  -EFAULT;
+    }
 
     module_put(THIS_MODULE);
     return len;
@@ -205,9 +231,9 @@ static int proc_2k1_type_open(struct inode *inode, struct file *file)
     return 0;
 }
 
-static int proc_2k1_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
+static ssize_t proc_2k1_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
 {
-    int len = 0;
+    ssize_t len = 0;
     DEVICE_EXTENSION *pde = pdeArray[1];
     char msg[8]; // Our msg is only 1-3 bytes long.
 
@@ -237,7 +263,10 @@ static int proc_2k1_type_read(struct file *filp,char *buf,size_t count,loff_t *o
 	len = count;
     }
 
-    copy_to_user(buf, msg, len);
+    if  ( copy_to_user(buf, msg, len) != 0)  {
+      info("proc_2k3_type_read:  copy_to_user did not copy all bytes");
+      len =  -EFAULT;
+    }
 
     module_put(THIS_MODULE);
     return len;
@@ -252,9 +281,9 @@ static int proc_2k2_type_open(struct inode *inode, struct file *file)
     return 0;
 }
 
-static int proc_2k2_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
+static ssize_t proc_2k2_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
 {
-    int len = 0;
+    ssize_t len = 0;
     DEVICE_EXTENSION *pde = pdeArray[2];
     char msg[8]; // Our msg is only 1-3 bytes long.
 
@@ -284,7 +313,10 @@ static int proc_2k2_type_read(struct file *filp,char *buf,size_t count,loff_t *o
 	len = count;
     }
 
-    copy_to_user(buf, msg, len);
+    if  ( copy_to_user(buf, msg, len) != 0)  {
+      info("proc_2k3_type_read:  copy_to_user did not copy all bytes");
+      len =  -EFAULT;
+    }
 
     module_put(THIS_MODULE);
     return len;
@@ -299,9 +331,9 @@ static int proc_2k3_type_open(struct inode *inode, struct file *file)
     return 0;
 }
 
-static int proc_2k3_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
+static ssize_t proc_2k3_type_read(struct file *filp,char *buf,size_t count,loff_t *offp)
 {
-    int len = 0;
+    ssize_t len = 0;
     DEVICE_EXTENSION *pde = pdeArray[3];
     char msg[8]; // Our msg is only 1-3 bytes long.
 
@@ -331,7 +363,10 @@ static int proc_2k3_type_read(struct file *filp,char *buf,size_t count,loff_t *o
 	len = count;
     }
 
-    copy_to_user(buf, msg, len);
+    if  ( copy_to_user(buf, msg, len) != 0)  {
+      info("proc_2k3_type_read:  copy_to_user did not copy all bytes");
+      len =  -EFAULT;
+    }
 
     module_put(THIS_MODULE);
     return len;
@@ -506,6 +541,7 @@ static int __init
 allocate_buffers(DEVICE_EXTENSION * pde)
 {
 
+    int ret = 0;
     pde->readbuf = NULL;
     pde->writebuf = NULL;
 
@@ -513,7 +549,8 @@ allocate_buffers(DEVICE_EXTENSION * pde)
 	    & pde->readbuf_busaddr);
     if (!pde->readbuf)
     {
-	return -ENOMEM;
+	ret =  -ENOMEM;
+        goto exit;
     }
     pde->dmaInpBuf = pde->readbuf;
     pde->readbufsize = READBUFSIZE;
@@ -528,7 +565,8 @@ allocate_buffers(DEVICE_EXTENSION * pde)
 	    & pde->writebuf_busaddr);
     if (!pde->writebuf)
     {
-	return -ENOMEM;
+	ret  =   -ENOMEM;
+        goto exit;
     }
 
     pde->dmaOutBuf = pde->writebuf;
@@ -538,11 +576,32 @@ allocate_buffers(DEVICE_EXTENSION * pde)
 	    pde->writebufsize, (ulong) pde->writebuf,
 	    (ulong) virt_to_bus((void *) pde->writebuf),
 	    (ulong) virt_to_phys((void *) pde->writebuf));
-
-    return 0;
+	/*
+	 *	Allocating buffers and pinning them to RAM
+	 *	to be mapped to user space in db2k_mmap
+	 */
+	pde->in_buf = alloc_pages_exact(bufsize, GFP_KERNEL | __GFP_ZERO);
+	if (!pde->in_buf) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+	pages_flag(virt_to_page(pde->in_buf), PFN_UP(bufsize), PG_reserved, 1);
+	pde->out_buf = alloc_pages_exact(bufsize, GFP_KERNEL | __GFP_ZERO);
+	if (!pde->out_buf) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+	pages_flag(virt_to_page(pde->out_buf), PFN_UP(bufsize), PG_reserved, 1);
+exit:
+        dbg("ret = %d", ret);
+        if (ret < 0) {
+          db2k_cleanup();
+        }
+    return ret;
 }
 
 
+struct device *Daq_dev = NULL;
 static int __init
 db2k_detect(int device_id_num)
 {
@@ -552,6 +611,7 @@ db2k_detect(int device_id_num)
     while ((pdev = pci_get_device(VENDOR_ID,device_id_num , pdev)))
     {
 	ncards++;
+        Daq_dev = &pdev->dev;   // use for dev_dbg() calls
     }	
     return ncards;
 }
@@ -752,6 +812,14 @@ db2k_cleanup(void)
 	    continue;
 	}
 	info("Releasing board %d", i);
+	if (pde->in_buf) {
+		pages_flag(virt_to_page(pde->in_buf), PFN_UP(bufsize), PG_reserved, 0);
+		free_pages_exact(pde->in_buf, bufsize);
+	}
+	if (pde->out_buf) {
+		pages_flag(virt_to_page(pde->out_buf), PFN_UP(bufsize), PG_reserved, 0);
+		free_pages_exact(pde->out_buf, bufsize);
+	}
 
 	/* clean up in the inverse order of allocation */
 	if (pde->cleanupflags & WRITEBUF_ALLOCATED) {
@@ -878,6 +946,7 @@ db2k_open(struct inode *inode, struct file *file)
     int minor = MINOR(inode->i_rdev);
     int stat = 0;
     DEVICE_EXTENSION *pde = NULL;
+    dbg("db2k_open called");
 
     if (minor >= MAX_SUPPORTED_DEVICE) {
 	return -(ENODEV);
@@ -911,7 +980,7 @@ db2k_open(struct inode *inode, struct file *file)
 }
 
 static int
-db2k_flush(struct file *filp)
+db2k_flush(struct file *filp, fl_owner_t id)
 {
 	int minor = MINOR(filp->f_dentry->d_inode->i_rdev);
 
@@ -951,15 +1020,15 @@ db2k_close(struct inode *inode, struct file *file)
 }
 
 
-static void
-db2k_irq(int irq, void *dev_id, struct pt_regs *registerp)
+static irqreturn_t
+db2k_irq(int irq, void *dev_id)
 {
     DEVICE_EXTENSION *pde;
     int dma0Status, dma1Status;
 
     if (dev_id == NULL) {
 	/* spurious interrupt error? */
-	return;
+	return IRQ_NONE;
     }
 
     /* we are board pde->id */
@@ -974,25 +1043,26 @@ db2k_irq(int irq, void *dev_id, struct pt_regs *registerp)
     if (pde->dmaInpActive) {
 	dbg("adc interrupt not serviced");
     }
-    return ;
+    return IRQ_HANDLED;
 }
 
 
 //MAH  re-implemet this properly!
-static int
+static long
 db2k_ioctl_check(unsigned int cmd, unsigned long arg)
 { 
 	return 0;
 }
 
 
-static int
+static long
 db2k_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     int minor = MINOR(file->f_path.dentry->d_inode->i_rdev);
     int stat = 0;
     DEVICE_EXTENSION *pde = NULL;
-    daqIOTP p = NULL;
+    daqIOTP p =  NULL ;
+    void __user *user = (void __user *) arg;
 
     if (minor >= MAX_SUPPORTED_DEVICE)
     {
@@ -1005,6 +1075,7 @@ db2k_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         //info("db2k_ioctl return2: %d", -(ENODEV));
 	return -(ENODEV);
     }
+    p = (daqIOTP ) (pde->in_buf); // this buffer allocated by alloc_pages_exact(bufsize, GFP_KERNEL | __GFP_ZERO)
 
     if ((stat = db2k_ioctl_check(cmd, arg)) != 0)
     {
@@ -1013,28 +1084,35 @@ db2k_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return stat;
     }
 
-    copy_from_user(&p, (void *) arg, sizeof (daqIOTP));
+    // copy entire daqIOT structure from user space to kernel space buffer 'p'
+    if (copy_from_user(p, user, sizeof (daqIOT)) != 0) {
+      info("db2k_ioctl : copy_from_user did not copy all bytes");
+      return -EFAULT;
+    }
 
-    //	switch (cmd) {
-    //	default:
 
     if (pde->online == TRUE)
     {
 	entryIoctl(pde, cmd, p);
         //info("db2k_ioctl return4: %d", ERROR_SUCCESS);
-	return ERROR_SUCCESS;
+        stat = ERROR_SUCCESS;
+    } else {
+        p->errorCode = DerrNotOnLine; 
+        info("Board %i not online.", pde->id);
+        stat = -EINVAL;
     }
-    p->errorCode = DerrNotOnLine;
-    info("Board %i not online.", pde->id);
-    stat = -EINVAL;
+    // copy entire daqIOT structure back to user space
+    if (copy_to_user(user, p,  sizeof (daqIOT)) != 0) {
+      info("db2k_ioctl : copy_from_user did not copy all bytes");
+      stat =  -EFAULT;
+    }
 
-    //		break;
-    //	}
 
     //info("db2k_ioctl return5: %d", stat);
     return stat;
 }
 
+#ifdef NOTDEF
 
 static void
 db2k_mmap_open(struct vm_area_struct *vma)
@@ -1078,17 +1156,15 @@ static struct vm_operations_struct db2k_vma_ops = {
 	open:db2k_mmap_open,
 	close:db2k_mmap_close,
 };
+#endif
 
 
 static int
 db2k_mmap(struct file *filp, struct vm_area_struct *vma)
 {
     int minor = MINOR(filp->f_dentry->d_inode->i_rdev);
-    char *buffer;
-    int gfp_size=0;
-    unsigned long userpage, pos;
-    unsigned long start = (unsigned long) vma->vm_start;
-    unsigned long size = (unsigned long) (vma->vm_end - vma->vm_start);
+    void *buf = NULL;
+
     DEVICE_EXTENSION *pde = NULL;
 
     if (minor >= MAX_SUPPORTED_DEVICE)
@@ -1101,59 +1177,19 @@ db2k_mmap(struct file *filp, struct vm_area_struct *vma)
 	return -(ENODEV);
     }
 
-    /*
-     * The gfp_size parameter is really = [ceil(lg(size))-12]
-     * i.e., the lowest power of two needed to multiply 4096 into 
-     * a number equal or larger to `size'. [4096 = (1<<12)]
-     * We find it by incrementing gfp_size until `size'
-     * is contained within an available block from the buddy system.
-     * Nine (9) is the biggest allowed value of this parameter,
-     * so we will let the test get to 10 before bailing
-     * with the knowledge that the user requested too much.
-     */
-
-    while( ((1 << (12+gfp_size) ) < size)  && (gfp_size < 11) )
-	gfp_size++;
-
-    if (gfp_size > 9)
-    {
-	warn("User Requested Buffer Exceeds Max Size of 2Mb");
-	return 1;
-    }
-
-    dbg("User requested buffer size=%li, gfp_size is=%i, real buffer size=(%i)", 
-	    size, gfp_size, (1 << (12+gfp_size)));
-
-    buffer = (char *) __get_free_pages(GFP_USER, gfp_size);
-
-    if (!buffer)
-    {
-	warn("GFP FAILED: returned pointer: %p", buffer);
-	return 1;
-    }
-
-    dbg("buffer location is 0x%p", buffer);
-
-
-    pde->modulebuffer = (WORD *) buffer;
-    pos = (unsigned long) buffer;
-
-    while (size > 0) {
-	userpage = virt_to_phys((void *) pos);
-
-	if (remap_pfn_range(vma, start, userpage >> PAGE_SHIFT, PAGE_SIZE, PAGE_SHARED))    	 {
-	    warn("remap_pfn_range FAILED"); 
-	    return -EAGAIN;
+	if (vma->vm_flags & VM_WRITE)
+		buf = pde->in_buf;
+	else if (vma->vm_flags & VM_READ)
+		buf = pde->out_buf;
+	if (!buf)
+		return -EINVAL;
+	if (remap_pfn_range(vma, vma->vm_start, virt_to_phys(buf) >> PAGE_SHIFT,
+			    vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+		pr_err("%s\n", "remap_pfn_range failed");
+		return -EAGAIN;
 	}
-	start += PAGE_SIZE;
-	pos += PAGE_SIZE;
-	size -= PAGE_SIZE;
-    }
-    vma->vm_ops = &db2k_vma_ops;
-    db2k_mmap_open(vma);
-    return 0;
+	return 0;
 }
-
 
 module_init(db2k_init);
 module_exit(db2k_cleanup);
