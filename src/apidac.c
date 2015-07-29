@@ -1923,7 +1923,7 @@ daqDacWaveArm(DaqHandleT handle, DaqDacDeviceType deviceType)
 	BOOL outputFromFile = FALSE;
 	DWORD totalActiveChannelCount = 0;
 	FILE **outputFilePtr = NULL;
-	ApiDacWaveT *dacWaveCopyForFile;
+	ApiDacWaveT *dacWaveCopyForFile = 0;
 
 	err = dacTestDeviceType(handle, deviceType);
 	if (err != DerrNoError) {

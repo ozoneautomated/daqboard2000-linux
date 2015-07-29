@@ -1249,8 +1249,8 @@ daqDefaultErrorHandler(DaqHandleT handle, DaqError errCode)
     daqFormatError(errCode, errMsg);
 
     sprintf(errStr,
-	    "Daq Error #%u (0x%x),  handle = %d (0x%X)\n'%s'\n",
-	    errCode, errCode, handle, handle, errMsg);
+	    "Daq Error #%u (0x%x),  handle = %ld (0x%ld)\n'%s'\n",
+	    errCode, errCode, (ULONG) handle, (ULONG) handle, errMsg);
 
     strcat(errStr, "\nDo you wish to continue?\n");
 
@@ -1325,6 +1325,7 @@ daqOpen(PCHAR daqName)
 	LONG lockMask;
 
 	lockMask = DlmAll;
+        memset((void *) &initMsg, 0, sizeof(MsgT));  // avoid Valgrind complains
 
 	err = openHandle(&handle, daqName, lockMask);
 	if (err == DerrNoError) {
@@ -1370,6 +1371,7 @@ daqClose(DaqHandleT handle)
 	LONG lockMask;
 
 	lockMask = DlmAll;
+        memset((void *) &closeMsg, 0, sizeof(MsgT));  // avoid Valgrind complains
 	err = apiCtrlTestHandle(handle, DlmNone);
 
 	if (err == DerrNoError) {

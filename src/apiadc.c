@@ -45,6 +45,8 @@
 #endif
 
 #include <stdio.h>
+#include <assert.h>
+#define DEBUG
 #include "iottypes.h"
 
 #include "daqx.h"
@@ -59,6 +61,9 @@
 #define  MaxAdcFifoHalfFullSize  8192
 #define  MinAdcFifoHalfFullSize  256
 #define  MaxTrigChannels         256
+
+#define API_ADC_DEBUG 1
+
 
 typedef struct {
 	ADC_CONFIG_T adcConfig;
@@ -243,25 +248,18 @@ apiAdcMessageHandler(MsgPT msg)
 {
 	DWORD i;
 
+        assert(sizeof(ADC_STATUS_PT) <= sizeof(daqIOT) );
+
 	if (msg->errCode == DerrNoError) {
 		switch (msg->msg) {
 		case MsgAttach:
 			dbg("In MsgAttach");
+                        
 			for (i = 0; i < MaxSessions; i++) {
 				session[i].adcConfig.adcScanSeq = session[i].adcScanSeq;
 				session[i].adcConfig.triggerEventList =
 					session[i].triggerEventList;
 
-#if 0
-				if (OS.IsW9X()) {
-					if (!cmnCreateCommonEvent
-					    (&session[i].adcEventR3,
-					     &session[i].adcXfer.
-					     adcXferEvent, FALSE, FALSE)) {
-						msg->errCode = DerrBadAddress;
-					}
-				}
-#endif
 
 				session[i].adcProcessingThreadHandle = NO_GRIP;
 				session[i].adcFileHandle = NO_GRIP;
@@ -269,6 +267,8 @@ apiAdcMessageHandler(MsgPT msg)
 				session[i].adcAcqActive = FALSE;
 				session[i].adcConfig.adcDataPack = DardfNative;
 				session[i].postProcFormat = DappdfRaw;
+                                session[i].adcConfig.adcTrigLevel = adcTrigLevel;
+                                session[i].adcConfig.adcTrigHyst =  adcTrigHyst;
 			}
 			break;
 
@@ -277,11 +277,6 @@ apiAdcMessageHandler(MsgPT msg)
 			dbg("In MsgDetach");
 			for (i = 0; i < MaxSessions; i++) {
 
-#if 0
-				if (OS.IsW9X()) {
-					CloseHandle(session[i].adcEventR3);
-				}
-#endif
 
 				if (session[i].adcProcessingThreadHandle != NO_GRIP)
 					CloseHandle(session[i].adcProcessingThreadHandle);
@@ -549,8 +544,6 @@ processNewData(DaqHandleT handle, DWORD adcXferCount)
 	DWORD scanHead;
 	DWORD scanTail = session[handle].adcAcqStat.adcAcqStatTail;
 	DWORD scanLen = session[handle].adcConfig.adcScanLength;
-	DWORD bufLenScans;
-	DWORD realSampleCount;
 	DWORD realBufLenScans = session[handle].adcXfer.adcXferBufLen;
 	DWORD realBufLenSamples =
 	    (session[handle].adcXfer.adcXferBufLen * session[handle].adcConfig.adcScanLength);
@@ -572,15 +565,10 @@ processNewData(DaqHandleT handle, DWORD adcXferCount)
 		bufLen =
 		    (session[handle].adcXfer.adcXferBufLen *
 		     session[handle].adcConfig.adcScanLength * 3) / 4;
-		bufLenScans = (session[handle].adcXfer.adcXferBufLen * 3) / 4;
-		realSampleCount = adcXferCount * 4 / 3;
 		realSamplesToProcess = samplesToProcess * 4 / 3;
 	} else {
 		bufLen =
 		    session[handle].adcXfer.adcXferBufLen * session[handle].adcConfig.adcScanLength;
-		bufLenScans = session[handle].adcXfer.adcXferBufLen;
-		realSampleCount = adcXferCount;
-		realSamplesToProcess = samplesToProcess;
 	}
 
 	if ((samplesToProcess > bufLen)
@@ -661,28 +649,33 @@ adcGetStatAndProcessData(DaqHandleT handle, PDWORD pActive, PDWORD pScanCount)
 {
 
 	daqIOT sb;
+        memset( (void*) &sb, 0, sizeof(sb));
 	ADC_STATUS_PT adcStat = (ADC_STATUS_PT) & sb;
 	ApiAdcPT ps = &session[handle];
 	DaqError err;
 	BOOL bDataPacked;
 	DWORD dwSampleCount;
 
-    dbg(stderr,"WELCOME TO adcGetStatAndProcessData\n");
+        dbg("WELCOME TO adcGetStatAndProcessData\n");
 
 	bDataPacked = (DardfPacked == ps->adcConfig.adcDataPack);
 
 	if (NULL != pActive) {
 		adcStat->adcAcqStatus = *pActive;
-	}
+	} else {
+                adcStat->adcAcqStatus = 0;
+        }
 	if (NULL != pScanCount) {
 		adcStat->adcXferCount = ScanToXferCount(*pScanCount, ps->adcConfig.adcScanLength);
-	}
+	} else {
+               adcStat->adcXferCount = 0;
+        }
 
 	dbg("(OUT) %d",adcStat->adcXferCount);
 
 	err = itfExecuteCommand(handle, &sb, ADC_STATUS);
     
-	dbg(stderr,"(IN) %d, 0x%X", adcStat->adcXferCount, adcStat->adcAcqStatus);
+	dbg("(IN) %d, 0x%X", adcStat->adcXferCount, adcStat->adcAcqStatus);
 
 	adcStat->adcXferCount /= ps->adcConfig.adcScanLength;
 	adcStat->adcXferCount *= ps->adcConfig.adcScanLength;
@@ -740,35 +733,6 @@ adcGetStatAndProcessData(DaqHandleT handle, PDWORD pActive, PDWORD pScanCount)
 DWORD
 waitForStatusChgEvent(VOID * pHandle, DWORD timeout, DaqHandleT eventHandle)
 {
-	DaqHandleT handle;
-	handle = (DaqHandleT) pHandle;
-
-#if 0
-	if (OS.IsW9X()) {
-
-		DWORD retVal;
-		retVal = WaitForSingleObject(eventHandle, timeout);
-		return retVal;
-
-	} else if (OS.IsWNT()) {
-		DaqError err;
-		daqIOT sb;
-		ADC_STATUS_CHG_PT adcStatusChg;
-		adcStatusChg = (ADC_STATUS_CHG_PT) & sb;
-		adcStatusChg->timeout = timeout;
-
-		adcStatusChg->timedout = 0L;
-
-		err = itfExecuteCommand(handle, &sb, ADC_STATUS_CHG);
-
-		dbg("DAQX: waitForStatusChgEvent got error %d from the driver's adcGetStatus.",
-		     adcStatusChg->errorCode);
-
-		if (adcStatusChg->timedout) {
-			return DerrTimeout;
-		}
-	}
-#endif
 	return DerrNoError;
 }
 
@@ -808,7 +772,8 @@ apiAdcTransferGetFlag(DaqHandleT handle, DaqTransferEvent event, PBOOL eventSet)
 {
 
 	DaqError err;
-	DWORD acqStatus, xferCount;
+	DWORD acqStatus= 0; 
+        DWORD xferCount=0;
 
 	cmnWaitForMutex(AdcStatMutex);
 
@@ -832,6 +797,7 @@ apiAdcSendSmartDbkData(DaqHandleT handle, DWORD address, DWORD chanCount,
 	DaqError err;
 
 	daqIOT sb;
+        memset( (void *) &sb, 0, sizeof(sb));
 	ADC_CONFIG_PT adcConfig = (ADC_CONFIG_PT) & sb;
 	SCAN_SEQ_T *adcScanSeq;
 	TRIG_EVENT_T *triggerEventList;
@@ -842,6 +808,7 @@ apiAdcSendSmartDbkData(DaqHandleT handle, DWORD address, DWORD chanCount,
 	CHAR tmpFileName[PATH_MAX];
 
 	daqIOT ssb;
+        memset( (void *) &ssb, 0, sizeof(ssb));
 	ADC_START_PT adcXfer = (ADC_START_PT) & ssb;
 
 	if (session[handle].adcAcqActive){
@@ -916,6 +883,7 @@ apiAdcSendSmartDbkData(DaqHandleT handle, DWORD address, DWORD chanCount,
 	adcConfig->adcAcqMode = DaamNShot;
 
 	adcConfig->adcTrigLevel = 0;
+        dbg("adcConfig->adcTrigLevel = NULL");
 	adcConfig->adcTrigHyst = 0;
 	adcConfig->adcTrigChannel = 0;
 	adcConfig->adcEnhTrigCount = 0;
@@ -962,14 +930,6 @@ apiAdcSendSmartDbkData(DaqHandleT handle, DWORD address, DWORD chanCount,
 		adcXfer->adcXferMode = DatmCycleOff | DatmUpdateSingle;
 		adcXfer->adcXferBuf = buf;
 
-#if 0
-		if (OS.IsW9X()) {
-			if (session[handle].adcProcessingThreadHandle != NO_GRIP)
-				adcXfer->adcXferEvent = session[handle].adcXfer.adcXferEvent;
-			else
-				adcXfer->adcXferEvent = apiCtrlGetRing0TransferEventHandle();
-		}
-#endif
 
 		err = itfExecuteCommand(handle, &ssb, ADC_START);
 	}
@@ -1022,6 +982,9 @@ apiAdcReadSample(DaqHandleT handle, DWORD chan, DaqAdcGain gain, DWORD flags,
 
 	DaqError err;
 	daqIOT sb, ssb;
+
+        memset( (void *) &sb, 0, sizeof(sb));
+        memset( (void *) &ssb, 0, sizeof(ssb));
 	ADC_CONFIG_PT adcConfig = (ADC_CONFIG_PT) & sb;
 	ADC_START_PT adcXfer = (ADC_START_PT) & ssb;
 
@@ -1088,6 +1051,7 @@ apiAdcReadSample(DaqHandleT handle, DWORD chan, DaqAdcGain gain, DWORD flags,
 	adcConfig->adcAcqMode = DaamNShot;
 
 	adcConfig->adcTrigLevel = 0;
+        dbg("adcConfig->adcTrigLevel = NULL");
 	adcConfig->adcTrigHyst = 0;
 	adcConfig->adcTrigChannel = 0;
 	adcConfig->adcEnhTrigCount = 0;
@@ -1121,14 +1085,6 @@ apiAdcReadSample(DaqHandleT handle, DWORD chan, DaqAdcGain gain, DWORD flags,
 		adcXfer->adcXferMode = DatmCycleOff | DatmUpdateSingle;
 		adcXfer->adcXferBuf = buf;
 
-#if 0
-		if (OS.IsW9X()) {
-			if (session[handle].adcProcessingThreadHandle != NO_GRIP)
-				adcXfer->adcXferEvent = session[handle].adcXfer.adcXferEvent;
-			else
-				adcXfer->adcXferEvent = apiCtrlGetRing0TransferEventHandle();
-		}
-#endif
 
 		err = itfExecuteCommand(handle, &ssb, ADC_START);
 	}
@@ -1577,7 +1533,9 @@ daqAdcSetRate(DaqHandleT handle, DaqAdcRateMode mode, DaqAdcAcqState state,
 {
 	daqIOT sb;
 	DaqError err;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CONFIG_PT adcConfig = (ADC_CONFIG_PT) & sb;
+        dbg("sizeof(adcConfig) = %ld, sizeof(sb) = %ld", sizeof(*adcConfig),  sizeof(sb));
 
 	double period;
 	DWORD nsec, msec;
@@ -1647,6 +1605,7 @@ daqAdcSetRate(DaqHandleT handle, DaqAdcRateMode mode, DaqAdcAcqState state,
 	    session[handle].adcConfig.adcScanLength;
 	adcConfig->adcTrigSource = session[handle].adcConfig.adcTrigSource;
 	adcConfig->adcTrigLevel = session[handle].adcConfig.adcTrigLevel;
+        dbg("adcConfig->adcTrigLevel = session[%ld] ", handle);
 	adcConfig->adcTrigHyst = session[handle].adcConfig.adcTrigHyst;
 
 	adcConfig->adcTrigChannel = session[handle].adcConfig.adcTrigChannel;
@@ -1669,7 +1628,7 @@ daqAdcSetRate(DaqHandleT handle, DaqAdcRateMode mode, DaqAdcAcqState state,
 		adcConfig->adcTrigHyst = 0;
 		adcConfig->adcTrigChannel = 0;
 	}
-#if 0
+#if APIADC_DEBUG
 	DWORD i;
 	dbg("adcClockSource  = %d", adcConfig->adcClockSource);
 	dbg("adcAcqMode      = %d", adcConfig->adcAcqMode);
@@ -1882,8 +1841,8 @@ daqAdcSetTrig(DaqHandleT handle, DaqAdcTriggerSource triggerSource, BOOL rising,
 	if (rising)
 		session[handle].adcConfig.adcTrigSource |= RisingEdgeFlag;
 
-	session[handle].adcConfig.adcTrigLevel = level;
-	session[handle].adcConfig.adcTrigHyst = hysteresis;
+	session[handle].adcConfig.adcTrigLevel[0] = level;
+	session[handle].adcConfig.adcTrigHyst[0] = hysteresis;
 	session[handle].adcConfig.adcTrigChannel = channel;
 	session[handle].adcConfig.adcEnhTrigCount = 0;
 
@@ -2041,7 +2000,7 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 		}
 
 		daqAdcCalcTrig(handle, bBipolar, fGainVal, *level, &wTriggerLevel);
-		session[handle].adcConfig.adcTrigLevel = wTriggerLevel;
+		session[handle].adcConfig.adcTrigLevel[0] = wTriggerLevel;
 
 		session[handle].adcConfig.adcEnhTrigSens = trigSensitivity;
 
@@ -2050,11 +2009,11 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 			if ((hysteresis[0] < 50.0)
 			    || (hysteresis[0] > 800000000.0))
 				return apiCtrlProcessError(handle, DerrInvLevel);
-			session[handle].adcConfig.adcTrigHyst = (DWORD) (hysteresis[0]);
+			session[handle].adcConfig.adcTrigHyst[0] = (DWORD) (hysteresis[0]);
 		} else {
 
 			daqAdcCalcTrig(handle, bBipolar, fGainVal, *hysteresis, &wHysteresisLevel);
-			session[handle].adcConfig.adcTrigHyst = wHysteresisLevel;
+			session[handle].adcConfig.adcTrigHyst[0] = wHysteresisLevel;
 		}
 
 		session[handle].adcConfig.adcEnhTrigCount = 0;
@@ -2076,9 +2035,9 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 		else
 			session[handle].adcConfig.adcTrigSource = *triggerSources;
 
-		session[handle].adcConfig.adcTrigLevel = (DWORD) adcTrigLevel;
+		session[handle].adcConfig.adcTrigLevel = (PDWORD) &adcTrigLevel[0];
 
-		session[handle].adcConfig.adcTrigHyst = (DWORD) adcTrigHyst;
+		session[handle].adcConfig.adcTrigHyst = (PDWORD) &adcTrigHyst[0];
 
 		for (i = 0; i < chanCount; i++) {
 			adcTrigLevel[i] = (DWORD) (level[i] * 1000000.0);
@@ -2124,7 +2083,7 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 		session[handle].adcConfig.adcEnhTrigChan = channels;
 		session[handle].adcConfig.adcEnhTrigGain = gains;
 		session[handle].adcConfig.adcEnhTrigBipolar = (PDWORD) adcRanges;
-		session[handle].adcConfig.adcEnhTrigOpcode = (DWORD) opStr;
+		session[handle].adcConfig.adcEnhTrigOpcode =  opStr;
 		break;
 
 	case (DatsDigPattern):
@@ -2138,7 +2097,7 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 
 		session[handle].adcConfig.adcEnhTrigSens = trigSensitivity;
 
-		session[handle].adcConfig.adcTrigLevel = (DWORD) adcTrigLevel;
+		session[handle].adcConfig.adcTrigLevel = adcTrigLevel;
 
 		adcTrigLevel[0] = (DWORD) level[0];
 		adcTrigLevel[1] = (DWORD) level[1];
@@ -2171,8 +2130,8 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 			return apiCtrlProcessError(handle, DerrInvLevel);
 		adcTrigHyst[0] = (DWORD) (hysteresis[0]);
 
-		session[handle].adcConfig.adcTrigLevel = (DWORD) adcTrigLevel;
-		session[handle].adcConfig.adcTrigHyst = (DWORD) adcTrigHyst;
+		session[handle].adcConfig.adcTrigLevel =  adcTrigLevel;
+		session[handle].adcConfig.adcTrigHyst =  adcTrigHyst;
 		break;
 
 	default:
@@ -2218,9 +2177,9 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 		session[handle].adcConfig.adcEnhTrigGain = trigEnh[handle].gains;
 
 		session[handle].adcConfig.adcEnhTrigBipolar = (PDWORD) trigEnh[handle].adcRanges;
-		session[handle].adcConfig.adcEnhTrigOpcode = (DWORD) trigEnh[handle].opStr;
-		session[handle].adcConfig.adcTrigLevel = (DWORD) trigEnh[handle].level;
-		session[handle].adcConfig.adcTrigHyst = (DWORD) trigEnh[handle].hysteresis;
+		session[handle].adcConfig.adcEnhTrigOpcode =  trigEnh[handle].opStr;
+		session[handle].adcConfig.adcTrigLevel =  trigEnh[handle].level;
+		session[handle].adcConfig.adcTrigHyst =  trigEnh[handle].hysteresis;
 		break;
 
 	case (DatsDigPattern):
@@ -2231,7 +2190,7 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 		    *(PDWORD) (session[handle].adcConfig.adcTrigLevel + sizeof (DWORD));
 
 		session[handle].adcConfig.adcEnhTrigSens = trigEnh[handle].trigSensitivity;
-		session[handle].adcConfig.adcTrigLevel = (DWORD) trigEnh[handle].level;
+		session[handle].adcConfig.adcTrigLevel =  trigEnh[handle].level;
 
 		break;
 
@@ -2245,8 +2204,8 @@ daqAdcSetTrigEnhanced(DaqHandleT handle, DaqAdcTriggerSource * triggerSources,
 
 		session[handle].adcConfig.adcEnhTrigSens = trigEnh[handle].trigSensitivity;
 		session[handle].adcConfig.adcEnhTrigBipolar = (PDWORD) trigEnh[handle].adcRanges;
-		session[handle].adcConfig.adcTrigLevel = (DWORD) trigEnh[handle].level;
-		session[handle].adcConfig.adcTrigHyst = (DWORD) trigEnh[handle].hysteresis;
+		session[handle].adcConfig.adcTrigLevel =  trigEnh[handle].level;
+		session[handle].adcConfig.adcTrigHyst =  trigEnh[handle].hysteresis;
 		break;
 
 	default:
@@ -2410,8 +2369,8 @@ daqSetTriggerEvent(DaqHandleT handle,
 	}
 
 	if (event == DaqStartEvent) {
-		session[handle].adcConfig.adcTrigLevel = dwLevel;
-		session[handle].adcConfig.adcTrigHyst = dwVariance;
+		session[handle].adcConfig.adcTrigLevel[0] = dwLevel;
+		session[handle].adcConfig.adcTrigHyst[0] = dwVariance;
 
 		session[handle].adcConfig.adcTrigSource = trigSource;
 
@@ -2456,6 +2415,7 @@ daqAdcSoftTrig(DaqHandleT handle)
 
 	DaqError err;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
@@ -2796,6 +2756,8 @@ daqAdcArm(DaqHandleT handle)
 	daqIOT sb;
 	ADC_CONFIG_PT adcConfig;
 
+        memset( (void *) &sb, 0, sizeof(sb));
+
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError){
 		dbg("handle error err=%i",err);
@@ -2957,8 +2919,9 @@ daqAdcArm(DaqHandleT handle)
 		adcConfig->adcTrigLevel = session[handle].adcConfig.adcTrigLevel;
 		adcConfig->adcTrigHyst = session[handle].adcConfig.adcTrigHyst;
 		adcConfig->adcEnhTrigOpcode = session[handle].adcConfig.adcEnhTrigOpcode;
+		adcConfig->adcTrigChannel = 0;
 
-#if 0
+#if API_ADC_DEBUG
 		DWORD i;
 		dbg("daqAdcArm: adcClockSource  = %d", adcConfig->adcClockSource);
 		dbg("daqAdcArm: adcAcqMode      = %d", adcConfig->adcAcqMode);
@@ -2969,21 +2932,22 @@ daqAdcArm(DaqHandleT handle)
 		dbg("daqAdcArm: adcPreTPeriodms = %d", adcConfig->adcPreTPeriodms);
 		dbg("daqAdcArm: adcPreTPeriodns = %d", adcConfig->adcPreTPeriodns);
 		dbg("daqAdcArm: adcTrigSource   = %d", adcConfig->adcTrigSource);
-		dbg("daqAdcArm: adcTrigLevel    = %d",
-				(SHORT) adcConfig->adcTrigLevel);
-		dbg("daqAdcArm: adcTrigHyst     = %d", adcConfig->adcTrigHyst);
+		dbg("daqAdcArm: adcTrigLevel    = %ld", (ULONG) adcConfig->adcTrigLevel);
+		dbg("daqAdcArm: adcTrigHyst     = %ld", (ULONG)adcConfig->adcTrigHyst);
 		dbg("daqAdcArm: adcTrigChannel  = %d", adcConfig->adcTrigChannel);
 		dbg("daqAdcArm: adcDataPack     = %d", adcConfig->adcDataPack);
 		dbg("daqAdcArm: adcScanLength   = %d", adcConfig->adcScanLength);
+#ifdef NOTDEF
 		for (i = 0; i < adcConfig->adcScanLength; i++) {
-			dbg("daqAdcArm:    adcScanSeq      = %d",
-			     session[handle].adcScanSeq[i]);
+			dbg("daqAdcArm:    adcScanSeq      = %ld",
+                            (ULONG) session[handle].adcScanSeq[i]);
 		}
+#endif
 		DWORD *enhTrigChan = (DWORD *) session[handle].adcConfig.adcEnhTrigChan;
 		DWORD *enhTrigGain = (DWORD *) session[handle].adcConfig.adcEnhTrigGain;
 		DWORD *enhTrigBipolar = (DWORD *) session[handle].adcConfig.adcEnhTrigBipolar;
 		DWORD *enhTrigSens = (DWORD *) session[handle].adcConfig.adcEnhTrigSens;
-		DWORD *trigLevel = (DWORD *) session[handle].adcConfig.adcTrigLevel;
+		DWORD *trigLevel =  &session[handle].adcConfig.adcTrigLevel[0];
 		DWORD *trigHyst = (DWORD *) session[handle].adcConfig.adcTrigHyst;
 		dbg("daqAdcArm: adcEnhTrigCount = %d", adcConfig->adcEnhTrigCount);
 		for (i = 0; i < adcConfig->adcEnhTrigCount; i++) {
@@ -3084,6 +3048,7 @@ daqAdcDisarm(DaqHandleT handle)
 
 	if (session[handle].adcAcqActive) {
 		daqIOT sb;
+                memset((void *) &sb, 0, sizeof(sb));
 		if (DerrNoError != (err = itfExecuteCommand(handle, &sb, ADC_DISARM))) {
 			dbg("Error on Disarm, %d",err);
 			return apiCtrlProcessError(handle, err);
@@ -3139,7 +3104,7 @@ daqAdcTransferSetBuffer(DaqHandleT handle, PWORD buf, DWORD scanCount, DWORD tra
 
 		linhandle = itfGetDriverHandle(handle);
 		if (linhandle == NO_GRIP) {
-			dbg("itfGetDriverHandle FAILED  %i", linhandle);
+			dbg("itfGetDriverHandle FAILED  %li", linhandle);
 			return apiCtrlProcessError(handle, DerrMemAlloc);
 		}
 		
@@ -3740,6 +3705,7 @@ daqAdcTransferStart(DaqHandleT handle)
 	daqIOT sb;
 	ADC_START_PT adcXfer = (ADC_START_PT) & sb;
 
+        memset((void *) &sb, 0, sizeof(sb));
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
 		return apiCtrlProcessError(handle, err);
@@ -3770,14 +3736,6 @@ daqAdcTransferStart(DaqHandleT handle)
 	adcXfer->adcXferMode = session[handle].adcXfer.adcXferMode;
 	adcXfer->adcXferBuf = session[handle].adcXfer.adcXferBuf;
 
-#if 0
-	if (OS.IsW9X()) {
-		if (session[handle].adcProcessingThreadHandle != NO_GRIP)
-			adcXfer->adcXferEvent = session[handle].adcXfer.adcXferEvent;
-		else
-			adcXfer->adcXferEvent = apiCtrlGetRing0TransferEventHandle();
-	}
-#endif
 
 	dbg("STARTING TRANSFER with xferMode = %d", adcXfer->adcXferMode);
 
@@ -3801,6 +3759,7 @@ daqAdcTransferStop(DaqHandleT handle)
 
 	DaqHandleT linhandle;
 
+        memset((void *) &sb, 0, sizeof(sb));
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
 		return apiCtrlProcessError(handle, err);
@@ -3851,6 +3810,7 @@ daqAdcTransferStopAllocMem(DaqHandleT handle, PWORD buf, DWORD scanCount)
 	DaqError err;
 	daqIOT sb;
 
+        memset((void *) &sb, 0, sizeof(sb));
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
 		return apiCtrlProcessError(handle, err);
@@ -3939,6 +3899,7 @@ adcTestConfig(DaqHandleT handle)
 	DaqError err;
 	daqIOT sb;
 
+        memset((void *) &sb, 0, sizeof(sb));
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
 		return apiCtrlProcessError(handle, err);
@@ -4451,6 +4412,7 @@ daqDumpDriverDebugBuffer(DaqHandleT handle, PCHAR buf, DWORD charCount)
 	ADC_START_PT adcStart;
 
 
+        memset((void *) &sb, 0, sizeof(sb));
 	adcStart = (ADC_START_PT) & sb;
 	adcStart->errorCode = DerrNoError;
 	adcStart->adcXferBufLen = charCount / 2;

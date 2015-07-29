@@ -497,8 +497,10 @@ itfInit(DaqHandleT handle, PCHAR aliasName, MsgPT msg)
 {
 	DaqError err;
 	CHAR ddName[MaxddLen];
+        memset((void *) ddName, 0, MaxddLen); // avoid Valgrind complaints 
 
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb)); // avoid Valgrind complaints 
 	DAQPCC_OPEN_PT pdaqPCCOpen = (DAQPCC_OPEN_PT) & sb;
 	
 	err = itfClose(handle);
@@ -545,7 +547,7 @@ itfInit(DaqHandleT handle, PCHAR aliasName, MsgPT msg)
 	} else 
 #endif
 
-	session[handle].ddHandle = CreateFile(ddName, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
+	session[handle].ddHandle = OpenDevice(ddName, GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, 0, 0);
 
 	if (session[handle].ddHandle == NO_GRIP) {
 		return DerrNotOnLine;
@@ -615,7 +617,7 @@ dspCmd(DaqHandleT handle, DWORD action, DWORD memType, DWORD addr, PDWORD data)
 	pdspCmd->addr = addr;
 
 	if (action == 28)
-		pdspCmd->data = (DWORD) data;
+                pdspCmd->data =  (ULONG) data;
 	else
 		pdspCmd->data = *data;
 
@@ -644,7 +646,7 @@ daqBlockMemIO(DaqHandleT handle, DWORD action, DWORD blockType,
 	pBMIO->whichBlock = whichBlock;
 	pBMIO->addr = addr;
 	pBMIO->count = count;
-	pBMIO->buf = (DWORD) buf;
+	pBMIO->buf = (ULONG) buf;
 
 	DeviceIoControl(session[handle].ddHandle, (DWORD) DB_BLOCK_MEM_IO, &sb,
 			sizeof (sb), &sb, sizeof (sb), &iocount, NULL);

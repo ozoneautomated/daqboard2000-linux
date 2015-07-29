@@ -115,12 +115,32 @@ OutputDebugString(PCHAR str)
 
 
 
-DWORD CreateFile(char* filename,DWORD accessMode,DWORD shareMode,DWORD Security,DWORD createMode,DWORD flagsAttributes,DWORD temphandle)
+DaqHandleT  CreateFile(char* filename,DWORD accessMode,DWORD shareMode,DWORD Security,DWORD createMode,DWORD flagsAttributes,DWORD temphandle)
 {
 
-	int	daq_file_name;
-	char* path_name[80];
-	char num_boards[80];  
+        DaqHandleT	daq_handle;
+
+	//printf("linux_daqx CreateFile -filename = %s\n",filename);
+
+
+        if ((createMode & OPEN_ALWAYS) != OPEN_ALWAYS)
+        {
+          daq_handle = (DaqHandleT)open(filename,O_RDWR| O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP  | S_IROTH); 
+        }
+        else
+        {
+                daq_handle = (DaqHandleT)open(filename,O_RDWR | O_APPEND);
+        }
+        if (NO_GRIP == daq_handle) {
+               perror("open");
+        }
+        return  daq_handle;
+}
+DaqHandleT  OpenDevice(char* filename,DWORD accessMode,DWORD shareMode,DWORD Security,DWORD createMode,DWORD flagsAttributes,DWORD temphandle)
+{
+
+        DaqHandleT	daq_handle;
+	char path_name[80];
 
 	//printf("linux_daqx CreateFile -filename = %s\n",filename);
 
@@ -143,43 +163,41 @@ DWORD CreateFile(char* filename,DWORD accessMode,DWORD shareMode,DWORD Security,
 		strcat(path_name,"DaqBoard2K3");
 	}
 
-	if ((flagsAttributes & FILE_ATTRIBUTE_NORMAL) != FILE_ATTRIBUTE_NORMAL)
-	{
-		daq_file_name =  open(path_name, O_RDWR);
-		num_boards[0] = 2;
-		return daq_file_name;
-	}
-	else
-	{
-		if ((createMode & OPEN_ALWAYS) != OPEN_ALWAYS)
-		{
-			daq_file_name = (DWORD)fopen(filename,"wb"); 
-		}
-		else
-		{
-			daq_file_name = (DWORD)fopen(filename,"ab");
-		}
-		return  daq_file_name;
-	}
+        if ((createMode & OPEN_ALWAYS) != OPEN_ALWAYS)
+        {
+                daq_handle = (DaqHandleT)open(path_name,O_RDWR); 
+        }
+        else
+        {
+                daq_handle = (DaqHandleT)open(path_name,O_RDWR | O_APPEND);
+        }
+        if (NO_GRIP == daq_handle) {
+               perror("open");
+        }
+        return  daq_handle;
 }
 
 
 BOOL
 FlushFileBuffers(DaqHandleT handle)
 {
-	if ((void *) handle == NULL)
-    {
+        int res;
+	if ( NO_GRIP == handle )
+       {
 		return FALSE;
 	}
-	fflush((FILE *) handle);
-	return TRUE;
+	res = fsync(handle);
+	if (res != -1)
+		return TRUE;
+	dbg("errno =%d",errno);
+	return FALSE;
 }
 
 BOOL
 SetFilePointer(DaqHandleT handle, LONG fileSize, PLONG fileSizeHigh, DWORD filebegin)
 {
-	int res;
-	res = fseek((FILE *) handle, 0, SEEK_END);
+	off_t  res;
+	res = lseek(handle, fileSize, SEEK_SET);
 	if (res != -1)
 		return TRUE;
 	dbg("errno =%d",errno);
@@ -190,21 +208,22 @@ BOOL
 WriteFile(DaqHandleT handle, PVOID buffer, DWORD count, PDWORD written, PDWORD overlap)
 {
 	size_t res;
-	res = fwrite(buffer, sizeof (CHAR), count, (FILE *) handle);
+	res = write(handle, buffer, count);
 	if (res == count)
 		return TRUE;
-	dbg("short write %d of %d",res,count);
+	dbg("short write %ld of %ld",(unsigned long) res,(unsigned long)count);
 	return FALSE;
 }
 
 BOOL
 SetEndOfFile(DaqHandleT handle)
 {
-	if (fseek((FILE *) handle, 0, SEEK_CUR)){
+	off_t  res;
+	res = lseek(handle, 0, SEEK_END);
+	if (res != -1)
+		return TRUE;
 	dbg("errno =%d",errno);
-		return FALSE;
-	}
-	return TRUE;
+	return FALSE;
 }
 
 
@@ -225,11 +244,11 @@ RegOpenKey(HKEY hKey, PCHAR lpSubKey, PHKEY phkResult)
 	char string2[]="\\daqbrd2k";
 	int match;
 	char* substring;
-	size_t size;
+	// size_t size;
 
 
 	substring= strrchr( (char *) lpSubKey,'\\');
-	size = strlen(string2);
+	// size = strlen(string2);
 	//fprintf(stderr,"substring %s  string2 %s  \n",substring,string2);
 	match = strncmp(substring,string2,9);
 
@@ -286,9 +305,10 @@ RegQueryValueEx(HKEY hKey, PCHAR lpValueName, PDWORD lpReserved,
 	//int dev_type = 0;
 	char proc_file_name[64];
 	size_t count;
-	char proc_dev_type[2];
+	char proc_dev_type[3];
 	int proc_fd;
 
+        memset((void *)proc_dev_type, 0, 2);
 	PDWORD pdwData = (PDWORD) lpData;
 	//fprintf(stderr,"lpValueName %s\n",lpValueName);
 	if(!strcasecmp((char*) lpValueName,"AliasName"))
@@ -357,6 +377,9 @@ RegQueryValueEx(HKEY hKey, PCHAR lpValueName, PDWORD lpReserved,
 		else
 		{
 			count = read(proc_fd,proc_dev_type,2);
+                        if (2 != count) {
+                          dbg("read proc_dev_type failed");
+                        }
 			//printf("proc_dev_type %s\n",proc_dev_type);
 			close(proc_fd);
 		}        
@@ -445,7 +468,7 @@ GetFileSize(DaqHandleT handle, PDWORD lpdword)
 DWORD
 filelength(DaqHandleT handle)
 {
-	PDWORD lpdword;
+	PDWORD lpdword = 0;
 	return GetFileSize(handle, lpdword);
 }
 
@@ -481,7 +504,7 @@ DeviceIoControl(DaqHandleT hDevice, DWORD dwIoControlCode, PVOID lpInBuffer,
 		PDWORD lpBytesReturned, POVERLAPPED lpOverlapped)
 {
 	int err;
-	err = ioctl(hDevice, dwIoControlCode, &lpInBuffer);
+	err = ioctl(hDevice, dwIoControlCode, lpInBuffer);
     
     //MAH: 04.15.04 TEST
     if(err)
@@ -580,7 +603,7 @@ linMap(int size, DaqHandleT handle, DaqHandleT linhandle)
 	 */
 	pmap = (PWORD) mmap(NULL, /*size*/ gfp_size, PROT_READ, MAP_PRIVATE, linhandle, 0);
 	if (pmap != MAP_FAILED){
-		dbg("mmap'ed %i bytes on fd=%i, gfp_size=%i", size, linhandle, gfp_size);
+          dbg("mmap'ed %i bytes on fd=%ld, gfp_size=%i", size, (unsigned long) linhandle, gfp_size);
 		return pmap;
 	}
 

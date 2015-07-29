@@ -206,7 +206,7 @@ iotMalloc(size_t size)
 	ret =  malloc(size);
 	if (ret)
 		return ret;
-	fprintf(stderr, "Memory allocation failed! size = %d\n", size);
+	fprintf(stderr, "Memory allocation failed! size = %ld\n", size);
 	return NULL;
 }
 

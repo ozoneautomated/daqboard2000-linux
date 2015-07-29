@@ -40,6 +40,8 @@
 
 #include <stdio.h>
 #include <memory.h>
+#include <assert.h>
+
 #include "iottypes.h"
 
 #include "daqx.h"
@@ -134,7 +136,7 @@ apiDbkMessageHandler(MsgPT msg)
 			pDbk = &session[msg->handle];
 			if (IsWaveBook(msg->deviceType)) {
 				pDbk->chanOptions = (ChanOptionsT *)
-				    malloc((Wbk512MaxAdChans + 1) * sizeof (ChanOptionsT));
+				    calloc((Wbk512MaxAdChans + 1) , sizeof (ChanOptionsT));
 				if (pDbk->chanOptions == NULL) {
 					msg->errCode = DerrMemAlloc;
 					return;
@@ -174,6 +176,8 @@ apiDbkMessageHandler(MsgPT msg)
 				session[msg->handle].gnDeviceType = msg->deviceType;
 				if ((IsDaq2000(msg->deviceType)) || (IsDaq1000(msg->deviceType))){
 					daqIOT sb;
+                                        memset((void *) &sb, 0, sizeof(sb));
+                                        assert( sizeof(ADC_HWINFO_PT) <= sizeof(daqIOT) );
 					ADC_HWINFO_PT infoRequest = (ADC_HWINFO_PT) & sb;
 					infoRequest->chan = 0;
 					infoRequest->chanType = 0;
@@ -195,11 +199,11 @@ apiDbkMessageHandler(MsgPT msg)
 					}
 				}
 				session[msg->handle].chanOptions =
-				    (ChanOptionsT *) malloc(272 * sizeof (ChanOptionsT));
-				session[msg->handle].gnDevHwareInf.ChannelsPerSys = 272L;
+                                  (ChanOptionsT *) calloc(ChansPerSystem,  sizeof (ChanOptionsT));
+				session[msg->handle].gnDevHwareInf.ChannelsPerSys = ChansPerSystem;
 				session[msg->handle].gnDevHwareInf.MainUnitChans = 16;
                 //printf("1 Setting it all to null\n");
-				for (curChan = 0; curChan < 272L; curChan++)
+				for (curChan = 0; curChan < ChansPerSystem; curChan++)
 					session[msg->handle].
 					    chanOptions[curChan].optionStruct = NULL;
 				freeDataStructMemory(msg->handle);
@@ -228,6 +232,7 @@ initializeWaveBook(DaqHandleT handle)
 
 	DWORD chan;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_HWINFO_PT infoRequest = (ADC_HWINFO_PT) & sb;
 
 	err = apiCtrlTestHandle(handle, DlmAll);
@@ -393,9 +398,10 @@ static VOID
 freeDataStructMemory(DaqHandleT handle)
 {
 
-	DaqAdcExpType oldChanType;
-	DWORD oldStartChan, oldEndChan;
-	DWORD curChan;
+	DaqAdcExpType oldChanType=0;
+	DWORD oldStartChan=0;
+        DWORD oldEndChan=0;
+	DWORD curChan=0;
 
 	curChan = 0;
 
@@ -438,7 +444,7 @@ typedef struct {
     
         if (&session[handle].chanOptions[chan] == NULL)
         {
-            printf("BLOWN POINTER ! GetChanOP handle %i chan %i\n",handle,chan);
+          printf("BLOWN POINTER ! GetChanOP handle %ldi chan %i\n",(ULONG)handle,chan);
         }
         else
         {
@@ -1007,12 +1013,14 @@ getWbkChanOption(DaqHandleT handle, DWORD chan, DaqOptionType optionType, VOID *
 
 	DaqError err;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
+        assert( (sizeof(ADC_CHAN_OPT_PT) <= sizeof(daqIOT) ));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 	adcChanOpt->startChan = chan;
 	adcChanOpt->endChan = chan;
 	adcChanOpt->chanOptType = (DWORD) optionType;
-	adcChanOpt->optValue = (DWORD) optionValue;
+	adcChanOpt->optValue = (ULONG) optionValue;
 	adcChanOpt->operation = 0;
 	err = itfExecuteCommand(handle, &sb, ADC_CHAN_OPT);
 	return err;
@@ -1027,6 +1035,7 @@ setWbk12Options(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 	DaqError err;
 	DWORD startChan, chansInBank;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define wbk12CheckOptionValue(lowLimit, highLimit)\
@@ -1140,6 +1149,7 @@ setPga516Options(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 
 	DaqError err;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define wbkPga516CheckOptionValue(lowLimit, highLimit)\
@@ -1182,6 +1192,7 @@ setWbk14Options(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 	DWORD startChan, chansInBank;
 	DaqChanOptionValue excSrcWaveform;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define wbk14CheckOptionValue(lowLimit, highLimit) \
@@ -1347,6 +1358,7 @@ setWbk16Options(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 	DaqError err;
 	DWORD startChan, chansInBank;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define wbk16CheckOptionValue(lowLimit, highLimit)\
@@ -1488,6 +1500,7 @@ setWbk17Options(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 	DaqError err;
 
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define wbk17CheckOptionValue(lowLimit, highLimit)\
@@ -1788,6 +1801,7 @@ setCounterOptions(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 
 	DaqError err;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define CounterCheckOptionValue(lowLimit, highLimit)\
@@ -1849,6 +1863,7 @@ setTimerOptions(DaqHandleT handle, DWORD chan, DWORD moduleOption,
 
 	DaqError err;
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	ADC_CHAN_OPT_PT adcChanOpt = (ADC_CHAN_OPT_PT) & sb;
 
 #define TimerCheckOptionValue(lowLimit, highLimit)\
@@ -2468,19 +2483,15 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 {
 	DaqError err;
 	daqIOT sb;
-//	int chStat = 0;
-//	int radix = 0;
+        memset((void *) &sb, 0, sizeof(sb));
 	double dblVal = 0;
 	const double Million = 1000000.0;
 	const double Thousand = 1000.0;
-	DaqAdcExpType chType;
 	ADC_HWINFO_PT infoRequest = (ADC_HWINFO_PT) & sb;
 
 	err = apiCtrlTestHandle(handle, DlmAll);
 	if (err != DerrNoError)
 		return apiCtrlProcessError(handle, err);
-
-	chType = apiGetChanType(handle, chan);
 
 	switch (whichInfo) {
 
@@ -2736,7 +2747,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiNVRAMDateInfo:
 		infoRequest->dtEnum = AhiDate;
 		infoRequest->option = 0;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2746,7 +2757,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiNVRAMTimeInfo:
 		infoRequest->dtEnum = AhiTime;
 		infoRequest->option = 0;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2756,7 +2767,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiOptNVRAMDateInfo:
 		infoRequest->dtEnum = AhiDate;
 		infoRequest->option = 1;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2766,7 +2777,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiOptNVRAMTimeInfo:
 		infoRequest->dtEnum = AhiTime;
 		infoRequest->option = 1;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2776,7 +2787,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiSerialNumber:
 		infoRequest->dtEnum = AhiSerialNumber;
 		infoRequest->option = 0;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2786,7 +2797,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiFirmwareVersion:
 		infoRequest->dtEnum = AhiFirmwareVer;
 		infoRequest->option = 0;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -2796,7 +2807,7 @@ daqGetInfo(DaqHandleT handle, DWORD chan, DaqInfo whichInfo, VOID * info)
 	case DdiHardwareVersion:
 		infoRequest->dtEnum = AhiHardwareVer;
 		infoRequest->option = 0;
-		infoRequest->usrPtr = (DWORD) info;
+		infoRequest->usrPtr = (PDWORD) info;
 		infoRequest->chan = chan;
 		err = itfExecuteCommand(handle, &sb, ADC_HWINFO);
 		if (err != DerrNoError)
@@ -3215,6 +3226,7 @@ SetBaseUnitOption(DaqHandleT handle, DaqOptionType optionType, float optionValue
 	};
 
 	daqIOT sb;
+        memset((void *) &sb, 0, sizeof(sb));
 	SET_OPTION_PT pb = (SET_OPTION_PT) & sb;
 	pb->errorCode = 0;
 	pb->dwValue = (DWORD) optionValue;
