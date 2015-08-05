@@ -51,8 +51,6 @@ SHLIB = $(LIB_DIR)/libdaqx.so
 VPATH = $(LIB_DIR):$(INC_DIR)
 
 
-# Device driver specific
-DB2K_MAJOR = 61
 
 
 # Running kernel directory
@@ -79,9 +77,10 @@ $(BIN_DIR):
 # Build the driver
 # ADD V=1 for verbose build lines
 # CFLAGS_MODULE is used for compiling the driver/module
+KDEFS=-DCONFIG_DYNAMIC_DEBUG -DCONFIG_KALLSYMS -DCONFIG_HIGH_RES_TIMERS -DCONFIG_TRACEPOINTS
 driver:
-	$(MAKE)  -C $(KDIR) M=$$PWD \
-	CFLAGS_MODULE='-DDEBUG_DB2K -DCONFIG_DYNAMIC_DEBUG'  modules
+	$(MAKE) V=1  -C $(KDIR) M=$$PWD \
+	CFLAGS_MODULE="$(KDEFS) -DDEBUG_DB2K -I/home/eol-lidar/rpmbuild/BUILD/lttng-modules-2.6.2"  modules
 
 
 # DaqBoard2000 library
