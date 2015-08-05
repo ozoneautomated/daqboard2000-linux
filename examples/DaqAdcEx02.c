@@ -43,7 +43,7 @@
 #define SCANS			25	            // 25 Scans per Channel
 #define RATE			10000            // 1000 Hz Scan Rate
 
-int main(void)
+int main(int argc, char *argv[])
 {
 	WORD i,j;
 
@@ -65,12 +65,22 @@ int main(void)
 
 	// Acquisition Status Variables
 	DWORD active, retCount;
+	
+	// scan count - defaults to SCANS
+	int scans = SCANS;
 
 	// Scaling Variables
 	float maxVolt;
 	float scale[CHANCOUNT];
 	float offset[CHANCOUNT];
 	float conv_buffer[SCANS * CHANCOUNT];
+
+        int calls = 1;
+
+	if (argc == 2) {
+		scans = atoi(argv[1]);
+	        printf("collecting %d scans\n", scans);
+        }
 
 	// Open the DaqBoard2000 and get the handle
 	printf("\n\nAttempting to Connect with %s\n", devName );
@@ -86,13 +96,13 @@ int main(void)
 
 	// Set the acquisition type to 
 	// NShot with 0 pre-trig scans and "SCANS" post-trig scans
-	daqAdcSetAcq(handle, DaamNShot, 0, SCANS);
+	daqAdcSetAcq(handle, DaamNShot, 0, scans);
 
 	// Pass the Channels, Gains, and Flags Arrays along with the channel count to setup the Acquisition
 	daqAdcSetScan(handle, channels, gains, flags, CHANCOUNT);
 
 	// Create a Driver managed buffer of SCANS length
-	daqAdcTransferSetBuffer(handle, buffer, SCANS,
+	daqAdcTransferSetBuffer(handle, buffer, scans,
 			DatmUpdateSingle | DatmDriverBuf);
 
 	// Set to Trigger on software trigger
@@ -131,14 +141,18 @@ int main(void)
 	// Loop until the Acquisition is complete
 	do
 	{
+                active = 0;
+                retCount = 0;
 		daqAdcTransferGetStat(handle, &active, (PDWORD) & retCount);                      
+                fprintf(stderr, "daqAdcTransferGetStat : active = 0x%x, retCount = %d, calls = %d\n", active, retCount, calls);
+                ++calls;
 
 	} while (active & DaafAcqActive);
 
 	printf("Scan Completed\n\n %i scans returned\n",retCount);
 
 	// transfer acquired data into "buffer"
-	daqAdcTransferBufData(handle, buffer, SCANS, DabtmNoWait, &retCount);    
+	daqAdcTransferBufData(handle, buffer, scans, DabtmNoWait, &retCount);    
 
 	//Disarm when completed
 	daqAdcDisarm(handle);
