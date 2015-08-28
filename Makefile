@@ -32,6 +32,7 @@ EXAMPLES = $(BIN_DIR)/bincvt $(BIN_DIR)/DaqAdcEx02\
 	$(BIN_DIR)/DaqAdcEx05 $(BIN_DIR)/DaqAdcEx06\
 	$(BIN_DIR)/DaqAdcEx07 $(BIN_DIR)/DaqAdcEx08\
 	$(BIN_DIR)/DaqAdcEx10 $(BIN_DIR)/DaqAdcEx11\
+	${BIN_DIR}/DaqAdcEx13 \
 	$(BIN_DIR)/DaqDacEx01 $(BIN_DIR)/DaqDigIOEx01\
 	$(BIN_DIR)/DaqDigIOEx02 $(BIN_DIR)/DaqTmrEx01\
 	$(BIN_DIR)/DaqDacEx03 $(BIN_DIR)/DBK82Ex\
